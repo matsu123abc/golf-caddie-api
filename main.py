@@ -99,24 +99,31 @@ def index():
     let pointA = null;
     let pointB = null;
 
-    // GPS取得
+    // 高精度GPS取得（2回測定＋1秒待機＋平均）
     function getGPS(callback) {
         document.getElementById("distanceResult").innerText = "GPS取得中…";
 
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                callback({
-                    lat: pos.coords.latitude,
-                    lon: pos.coords.longitude
-                });
-                document.getElementById("distanceResult").innerText = "";
-            },
-            (err) => {
-                alert("GPS取得に失敗しました: " + err.message);
-                document.getElementById("distanceResult").innerText = "";
-            },
-            { enableHighAccuracy: true }
-        );
+        // 1回目の測定
+        navigator.geolocation.getCurrentPosition((pos1) => {
+
+            // ★ 1秒待ってから2回目を測定（精度向上の核心）
+            setTimeout(() => {
+                navigator.geolocation.getCurrentPosition((pos2) => {
+
+                    // ★ 2回の平均を取る（瞬間的な誤差を半減）
+                    const lat = (pos1.coords.latitude + pos2.coords.latitude) / 2;
+                    const lon = (pos1.coords.longitude + pos2.coords.longitude) / 2;
+
+                    callback({ lat, lon });
+                    document.getElementById("distanceResult").innerText = "";
+
+                }, 1000); // ← 1秒待つ（衛星数が安定する）
+            }, 1000);
+
+        }, (err) => {
+            alert("GPS取得に失敗しました: " + err.message);
+            document.getElementById("distanceResult").innerText = "";
+        }, { enableHighAccuracy: true });
     }
 
     // A地点記録
