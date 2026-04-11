@@ -34,7 +34,7 @@ def index():
     <html lang="ja">
     <head>
         <meta charset="UTF-8">
-        <title>ゴルフ距離計</title>
+        <title>ゴルフ距離計（音声操作付き）</title>
         <style>
             body {
                 font-family: sans-serif;
@@ -70,11 +70,17 @@ def index():
                 text-align: center;
                 margin-top: 20px;
             }
+            #voiceStatus {
+                margin-top: 10px;
+                font-size: 18px;
+                color: #444;
+                text-align: center;
+            }
         </style>
     </head>
     <body>
 
-    <h2>📏 ゴルフ距離計（地点A/B）</h2>
+    <h2>📏 ゴルフ距離計（音声操作付き）</h2>
 
     <button onclick="recordA()">地点A（ショット地点）を記録</button>
     <div id="posA" class="info-box">未記録</div>
@@ -85,6 +91,9 @@ def index():
     <button onclick="calcDistance()">距離を計算</button>
 
     <div id="distanceResult"></div>
+
+    <button onclick="startVoice()">🎤 音声操作スタート</button>
+    <div id="voiceStatus">音声操作は停止中</div>
 
     <script>
     let pointA = null;
@@ -153,6 +162,40 @@ def index():
             document.getElementById("distanceResult").innerText =
                 `飛距離：${yards.toFixed(1)} yd`;
         });
+    }
+
+    // -------------------------
+    // 音声操作（SpeechRecognition）
+    // -------------------------
+    function startVoice() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("このブラウザは音声認識に対応していません");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = "ja-JP";
+        recognition.continuous = true;
+
+        recognition.onstart = () => {
+            document.getElementById("voiceStatus").innerText = "🎤 音声認識中…";
+        };
+
+        recognition.onresult = (event) => {
+            const text = event.results[event.results.length - 1][0].transcript;
+            document.getElementById("voiceStatus").innerText = "認識: " + text;
+
+            if (text.includes("A")) recordA();
+            if (text.includes("B")) recordB();
+            if (text.includes("距離")) calcDistance();
+        };
+
+        recognition.onerror = (e) => {
+            document.getElementById("voiceStatus").innerText = "音声認識エラー: " + e.error;
+        };
+
+        recognition.start();
     }
     </script>
 
