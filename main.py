@@ -77,18 +77,32 @@ def index():
                 text-align: center;
             }
 
-            /* スマホ縦画面向け：超・特大サイズ（確実に縦だけ適用） */
+            /* 画面下に固定するGPS精度バー */
+            #gpsAccuracyBar {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                width: 100%;
+                background: #222;
+                color: #fff;
+                text-align: center;
+                padding: 14px 0;
+                font-size: 22px;
+                z-index: 9999;
+            }
+
+            /* スマホ縦画面向け：超・特大サイズ */
             @media screen and (orientation: portrait) {
                 body {
-                    font-size: 30px;   /* 全体をさらに大きく */
+                    font-size: 30px;
                 }
                 button {
-                    font-size: 34px;   /* ボタン文字を特大に */
-                    padding: 36px;     /* 押しやすいサイズ */
+                    font-size: 34px;
+                    padding: 36px;
                     border-radius: 16px;
                 }
                 #distanceResult {
-                    font-size: 60px;   /* 距離表示は超特大 */
+                    font-size: 60px;
                     font-weight: bold;
                     text-shadow: 1px 1px 3px #aaa;
                     margin-top: 30px;
@@ -101,9 +115,11 @@ def index():
                     padding: 20px;
                     border: 3px solid #ccc;
                 }
+                #gpsAccuracyBar {
+                    font-size: 30px;
+                    padding: 20px 0;
+                }
             }
-           
-         
         </style>
     </head>
     <body>
@@ -123,26 +139,32 @@ def index():
     <button onclick="startVoice()">🎤 音声操作スタート</button>
     <div id="voiceStatus">音声操作は停止中</div>
 
+    <!-- ★ GPS精度バー（画面下固定） -->
+    <div id="gpsAccuracyBar">GPS精度：計測中…</div>
+
     <script>
     let pointA = null;
     let pointB = null;
 
-    // 高精度GPS取得（2回測定＋1秒待機＋平均）
+    // 高精度GPS取得（2回測定＋1秒待機＋平均＋精度表示）
     function getGPS(callback) {
         document.getElementById("distanceResult").innerText = "GPS取得中…";
+        document.getElementById("gpsAccuracyBar").innerText = "GPS精度：計測中…";
 
-        // 1回目の測位
         navigator.geolocation.getCurrentPosition(
             (pos1) => {
 
-                // ★ 1秒待ってから2回目を測定
                 setTimeout(() => {
                     navigator.geolocation.getCurrentPosition(
                         (pos2) => {
 
-                            // ★ 2回の平均
                             const lat = (pos1.coords.latitude + pos2.coords.latitude) / 2;
                             const lon = (pos1.coords.longitude + pos2.coords.longitude) / 2;
+
+                            const acc = (pos1.coords.accuracy + pos2.coords.accuracy) / 2;
+
+                            document.getElementById("gpsAccuracyBar").innerText =
+                                `GPS精度：±${acc.toFixed(1)} m`;
 
                             callback({ lat, lon });
                             document.getElementById("distanceResult").innerText = "";
@@ -151,6 +173,7 @@ def index():
                         (err) => {
                             alert("2回目のGPS取得に失敗しました: " + err.message);
                             document.getElementById("distanceResult").innerText = "";
+                            document.getElementById("gpsAccuracyBar").innerText = "GPS精度：取得失敗";
                         },
                         { enableHighAccuracy: true }
                     );
@@ -160,11 +183,12 @@ def index():
             (err) => {
                 alert("1回目のGPS取得に失敗しました: " + err.message);
                 document.getElementById("distanceResult").innerText = "";
+                document.getElementById("gpsAccuracyBar").innerText = "GPS精度：取得失敗";
             },
             { enableHighAccuracy: true }
         );
     }
-  
+
     // A地点記録
     function recordA() {
         getGPS((p) => {
@@ -209,16 +233,13 @@ def index():
             document.getElementById("distanceResult").innerText =
                 `飛距離：${yards.toFixed(1)} yd`;
 
-            // 🔊 音声読み上げ
             const utter = new SpeechSynthesisUtterance(`飛距離 ${yards.toFixed(0)} ヤードです`);
             utter.lang = "ja-JP";
             speechSynthesis.speak(utter);
         });
     }
 
-    // -------------------------
-    // 音声操作（SpeechRecognition）
-    // -------------------------
+    // 音声操作
     function startVoice() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -255,6 +276,7 @@ def index():
     </html>
     """
     return HTMLResponse(content=html)
+
 
 # -------------------------
 # 距離計算API
