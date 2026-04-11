@@ -103,29 +103,40 @@ def index():
     function getGPS(callback) {
         document.getElementById("distanceResult").innerText = "GPS取得中…";
 
-        // 1回目の測定
-        navigator.geolocation.getCurrentPosition((pos1) => {
+        // 1回目の測位
+        navigator.geolocation.getCurrentPosition(
+            (pos1) => {
 
-            // ★ 1秒待ってから2回目を測定（精度向上の核心）
-            setTimeout(() => {
-                navigator.geolocation.getCurrentPosition((pos2) => {
+                // ★ 1秒待ってから2回目を測定
+                setTimeout(() => {
+                    navigator.geolocation.getCurrentPosition(
+                        (pos2) => {
 
-                    // ★ 2回の平均を取る（瞬間的な誤差を半減）
-                    const lat = (pos1.coords.latitude + pos2.coords.latitude) / 2;
-                    const lon = (pos1.coords.longitude + pos2.coords.longitude) / 2;
+                            // ★ 2回の平均
+                            const lat = (pos1.coords.latitude + pos2.coords.latitude) / 2;
+                            const lon = (pos1.coords.longitude + pos2.coords.longitude) / 2;
 
-                    callback({ lat, lon });
-                    document.getElementById("distanceResult").innerText = "";
+                            callback({ lat, lon });
+                            document.getElementById("distanceResult").innerText = "";
 
-                }, 1000); // ← 1秒待つ（衛星数が安定する）
-            }, 1000);
+                        },
+                        (err) => {
+                            alert("2回目のGPS取得に失敗しました: " + err.message);
+                            document.getElementById("distanceResult").innerText = "";
+                        },
+                        { enableHighAccuracy: true }
+                    );
+                }, 1000);
 
-        }, (err) => {
-            alert("GPS取得に失敗しました: " + err.message);
-            document.getElementById("distanceResult").innerText = "";
-        }, { enableHighAccuracy: true });
+            },
+            (err) => {
+                alert("1回目のGPS取得に失敗しました: " + err.message);
+                document.getElementById("distanceResult").innerText = "";
+            },
+            { enableHighAccuracy: true }
+        );
     }
-
+  
     // A地点記録
     function recordA() {
         getGPS((p) => {
