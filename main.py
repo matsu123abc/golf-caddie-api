@@ -77,27 +77,32 @@ def index():
                 text-align: center;
             }
 
-            /* スマホ縦画面向け：さらに大きくする */
+            /* スマホ縦画面向け：超・特大サイズ */
             @media (max-width: 480px) {
                 body {
-                    font-size: 24px;   /* ← 20px → 24px にアップ */
+                    font-size: 28px;   /* ← 全体を28pxに（大きい） */
                 }
                 button {
-                    font-size: 26px;   /* ← 22px → 26px */
-                    padding: 26px;     /* ボタンも大きく */
+                    font-size: 32px;   /* ← ボタン文字を32pxに */
+                    padding: 34px;     /* ← ボタンを“親指で押しやすい”サイズに */
+                    border-radius: 14px;
                 }
                 #distanceResult {
-                    font-size: 40px;   /* ← 32px → 40px（かなり見やすい） */
+                    font-size: 56px;   /* ← 距離表示を56px（市販距離計より大きい） */
                     font-weight: bold;
+                    text-shadow: 1px 1px 3px #aaa;
+                    margin-top: 30px;
                 }
                 #voiceStatus {
-                    font-size: 24px;   /* ← 22px → 24px */
+                    font-size: 28px;   /* ← 音声ステータスも大きく */
                 }
                 .info-box {
-                    font-size: 22px;   /* ← 20px → 22px */
-                    padding: 14px;
+                    font-size: 26px;   /* ← A/B地点の座標も大きく */
+                    padding: 18px;
+                    border: 3px solid #ccc;
                 }
             }
+       
          
         </style>
     </head>
