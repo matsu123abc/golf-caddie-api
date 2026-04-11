@@ -35,23 +35,56 @@ def index():
     <head>
         <meta charset="UTF-8">
         <title>ゴルフ距離計</title>
+        <style>
+            body {
+                font-family: sans-serif;
+                padding: 20px;
+                background: #f5f5f5;
+            }
+            h2 {
+                text-align: center;
+            }
+            button {
+                width: 100%;
+                padding: 18px;
+                margin-top: 12px;
+                font-size: 20px;
+                border-radius: 10px;
+                border: none;
+                background: #0078d4;
+                color: white;
+            }
+            button:active {
+                background: #005a9e;
+            }
+            .info-box {
+                margin-top: 10px;
+                padding: 10px;
+                background: white;
+                border-radius: 8px;
+                font-size: 16px;
+            }
+            #distanceResult {
+                font-size: 28px;
+                font-weight: bold;
+                text-align: center;
+                margin-top: 20px;
+            }
+        </style>
     </head>
     <body>
 
     <h2>📏 ゴルフ距離計（地点A/B）</h2>
 
     <button onclick="recordA()">地点A（ショット地点）を記録</button>
-    <div id="posA">未記録</div>
-
-    <br>
+    <div id="posA" class="info-box">未記録</div>
 
     <button onclick="recordB()">地点B（ボール地点）を記録</button>
-    <div id="posB">未記録</div>
-
-    <br><br>
+    <div id="posB" class="info-box">未記録</div>
 
     <button onclick="calcDistance()">距離を計算</button>
-    <h3 id="distanceResult"></h3>
+
+    <div id="distanceResult"></div>
 
     <script>
     let pointA = null;
@@ -59,14 +92,21 @@ def index():
 
     // GPS取得
     function getGPS(callback) {
+        document.getElementById("distanceResult").innerText = "GPS取得中…";
+
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 callback({
                     lat: pos.coords.latitude,
                     lon: pos.coords.longitude
                 });
+                document.getElementById("distanceResult").innerText = "";
             },
-            () => alert("GPS取得に失敗しました")
+            (err) => {
+                alert("GPS取得に失敗しました: " + err.message);
+                document.getElementById("distanceResult").innerText = "";
+            },
+            { enableHighAccuracy: true }
         );
     }
 
@@ -75,7 +115,7 @@ def index():
         getGPS((p) => {
             pointA = p;
             document.getElementById("posA").innerText =
-                `A: ${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`;
+                `A地点: ${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`;
         });
     }
 
@@ -84,7 +124,7 @@ def index():
         getGPS((p) => {
             pointB = p;
             document.getElementById("posB").innerText =
-                `B: ${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`;
+                `B地点: ${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}`;
         });
     }
 
@@ -94,6 +134,8 @@ def index():
             alert("A地点とB地点を記録してください");
             return;
         }
+
+        document.getElementById("distanceResult").innerText = "計算中…";
 
         fetch("/gps/distance", {
             method: "POST",
