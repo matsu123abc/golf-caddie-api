@@ -157,12 +157,17 @@ def index():
             })
         })
         .then(res => res.json())
+
         .then(data => {
             const yards = data.distance_yd;
             document.getElementById("distanceResult").innerText =
                 `飛距離：${yards.toFixed(1)} yd`;
+
+            // 🔊 音声読み上げ
+            const utter = new SpeechSynthesisUtterance(`飛距離 ${yards.toFixed(0)} ヤードです`);
+            utter.lang = "ja-JP";
+            speechSynthesis.speak(utter);
         });
-    }
 
     // -------------------------
     // 音声操作（SpeechRecognition）
