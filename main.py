@@ -76,23 +76,26 @@ def index():
                 color: #444;
                 text-align: center;
             }
-            /* スマホ縦画面向け：文字を大きくする */
+
+            /* スマホ縦画面向け：さらに大きくする */
             @media (max-width: 480px) {
                 body {
-                    font-size: 20px;
+                    font-size: 24px;   /* ← 20px → 24px にアップ */
                 }
                 button {
-                    font-size: 22px;
-                    padding: 22px;
+                    font-size: 26px;   /* ← 22px → 26px */
+                    padding: 26px;     /* ボタンも大きく */
                 }
                 #distanceResult {
-                    font-size: 32px;
+                    font-size: 40px;   /* ← 32px → 40px（かなり見やすい） */
+                    font-weight: bold;
                 }
                 #voiceStatus {
-                    font-size: 22px;
+                    font-size: 24px;   /* ← 22px → 24px */
                 }
                 .info-box {
-                    font-size: 20px;
+                    font-size: 22px;   /* ← 20px → 22px */
+                    padding: 14px;
                 }
             }
          
