@@ -76,6 +76,26 @@ def index():
                 color: #444;
                 text-align: center;
             }
+            /* スマホ縦画面向け：文字を大きくする */
+            @media (max-width: 480px) {
+                body {
+                    font-size: 20px;
+                }
+                button {
+                    font-size: 22px;
+                    padding: 22px;
+                }
+                #distanceResult {
+                    font-size: 32px;
+                }
+                #voiceStatus {
+                    font-size: 22px;
+                }
+                .info-box {
+                    font-size: 20px;
+                }
+            }
+         
         </style>
     </head>
     <body>
