@@ -168,6 +168,7 @@ def index():
             utter.lang = "ja-JP";
             speechSynthesis.speak(utter);
         });
+    }
 
     // -------------------------
     // 音声操作（SpeechRecognition）
