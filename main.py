@@ -335,3 +335,86 @@ def calc_distance(data: GPSData):
         "distance_m": dist_m,
         "distance_yd": dist_yd
     }
+
+# -------------------------
+# コースナビAPI
+# -------------------------
+@app.get("/course", response_class=HTMLResponse)
+def course_list():
+    # ★ まずは固定のダミーコース一覧（後で Blob 連携に置き換える）
+    courses = [
+        {"id": "course1", "name": "○○カントリークラブ"},
+        {"id": "course2", "name": "△△ゴルフ倶楽部"},
+        {"id": "course3", "name": "□□リンクス"},
+    ]
+
+    html = """
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>コース一覧</title>
+        <style>
+            body {
+                margin: 0;
+                padding: 24px;
+                background: #f5f5f5;
+                font-family: sans-serif;
+            }
+            h2 {
+                text-align: center;
+                font-size: 32px;
+                margin-bottom: 20px;
+            }
+            .top-btn {
+                width: 100%;
+                padding: 20px;
+                font-size: 26px;
+                border-radius: 14px;
+                border: none;
+                background: #444;
+                color: white;
+                margin-bottom: 20px;
+            }
+            .course-btn {
+                width: 100%;
+                padding: 32px;
+                margin-top: 16px;
+                font-size: 30px;
+                border-radius: 16px;
+                border: none;
+                background: #2d7df6;
+                color: white;
+            }
+            .course-btn:active {
+                background: #1e5ec0;
+            }
+        </style>
+    </head>
+
+    <body>
+
+    <button class="top-btn" onclick="location.href='/'">← ホームに戻る</button>
+
+    <h2>⛳ コース一覧</h2>
+
+    <div id="courseList">
+    """
+
+    # Python でコース一覧を HTML に埋め込む
+    for c in courses:
+        html += f"""
+        <button class="course-btn" onclick="location.href='/course/{c['id']}'">
+            {c['name']}
+        </button>
+        """
+
+    html += """
+    </div>
+
+    </body>
+    </html>
+    """
+
+    return HTMLResponse(content=html)
