@@ -27,29 +27,44 @@ def haversine(lat1, lon1, lat2, lon2):
 # -------------------------
 # UI（HTML + JavaScript）
 # -------------------------
-@app.get("/", response_class=HTMLResponse)
-def index():
+@app.get("/distance", response_class=HTMLResponse)
+def distance_page():
     html = """
     <!DOCTYPE html>
     <html lang="ja">
     <head>
         <meta charset="UTF-8">
-        <title>ゴルフ距離計（音声操作付き）</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>飛距離計</title>
+
         <style>
             body {
                 font-family: sans-serif;
                 padding: 20px;
                 background: #f5f5f5;
+                margin: 0;
             }
             h2 {
                 text-align: center;
+                font-size: 32px;
+                margin-bottom: 20px;
+            }
+            .top-btn {
+                width: 100%;
+                padding: 20px;
+                font-size: 26px;
+                border-radius: 14px;
+                border: none;
+                background: #444;
+                color: white;
+                margin-bottom: 20px;
             }
             button {
                 width: 100%;
-                padding: 18px;
-                margin-top: 12px;
-                font-size: 20px;
-                border-radius: 10px;
+                padding: 26px;
+                margin-top: 16px;
+                font-size: 30px;
+                border-radius: 16px;
                 border: none;
                 background: #0078d4;
                 color: white;
@@ -59,20 +74,22 @@ def index():
             }
             .info-box {
                 margin-top: 10px;
-                padding: 10px;
+                padding: 20px;
                 background: white;
-                border-radius: 8px;
-                font-size: 16px;
+                border-radius: 12px;
+                font-size: 26px;
+                border: 2px solid #ccc;
             }
             #distanceResult {
-                font-size: 28px;
+                font-size: 60px;
                 font-weight: bold;
                 text-align: center;
-                margin-top: 20px;
+                margin-top: 30px;
+                text-shadow: 1px 1px 3px #aaa;
             }
             #voiceStatus {
-                margin-top: 10px;
-                font-size: 18px;
+                margin-top: 20px;
+                font-size: 28px;
                 color: #444;
                 text-align: center;
             }
@@ -86,45 +103,18 @@ def index():
                 background: #222;
                 color: #fff;
                 text-align: center;
-                padding: 14px 0;
-                font-size: 22px;
+                padding: 20px 0;
+                font-size: 30px;
                 z-index: 9999;
-            }
-
-            /* スマホ縦画面向け：超・特大サイズ */
-            @media screen and (orientation: portrait) {
-                body {
-                    font-size: 30px;
-                }
-                button {
-                    font-size: 34px;
-                    padding: 36px;
-                    border-radius: 16px;
-                }
-                #distanceResult {
-                    font-size: 60px;
-                    font-weight: bold;
-                    text-shadow: 1px 1px 3px #aaa;
-                    margin-top: 30px;
-                }
-                #voiceStatus {
-                    font-size: 28px;
-                }
-                .info-box {
-                    font-size: 26px;
-                    padding: 20px;
-                    border: 3px solid #ccc;
-                }
-                #gpsAccuracyBar {
-                    font-size: 30px;
-                    padding: 20px 0;
-                }
             }
         </style>
     </head>
+
     <body>
 
-    <h2>📏 ゴルフ距離計（音声操作付き）</h2>
+    <button class="top-btn" onclick="location.href='/'">← ホームに戻る</button>
+
+    <h2>📏 飛距離計</h2>
 
     <button onclick="recordA()">地点A（ショット地点）を記録</button>
     <div id="posA" class="info-box">未記録</div>
@@ -139,7 +129,7 @@ def index():
     <button onclick="startVoice()">🎤 音声操作スタート</button>
     <div id="voiceStatus">音声操作は停止中</div>
 
-    <!-- ★ GPS精度バー（画面下固定） -->
+    <!-- GPS精度バー -->
     <div id="gpsAccuracyBar">GPS精度：計測中…</div>
 
     <script>
