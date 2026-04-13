@@ -24,6 +24,62 @@ def haversine(lat1, lon1, lat2, lon2):
     a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
 
+@app.get("/", response_class=HTMLResponse)
+def home():
+    html = """
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Golf Tools</title>
+        <style>
+            body {
+                margin: 0;
+                padding: 24px;
+                background: #f5f5f5;
+                font-family: sans-serif;
+            }
+            .home-container {
+                display: flex;
+                flex-direction: column;
+                gap: 32px;
+                max-width: 480px;
+                margin: 0 auto;
+            }
+            .home-btn {
+                width: 100%;
+                padding: 36px;
+                font-size: 32px;
+                font-weight: bold;
+                border-radius: 20px;
+                border: none;
+                background: #2d7df6;
+                color: white;
+            }
+            .home-btn:active {
+                background: #1e5ec0;
+            }
+        </style>
+    </head>
+    <body>
+
+    <div class="home-container">
+        <button class="home-btn" onclick="location.href='/distance'">
+            飛距離計
+        </button>
+
+        <button class="home-btn" onclick="location.href='/course'">
+            コースナビ
+        </button>
+    </div>
+
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
+
+
 # -------------------------
 # UI（HTML + JavaScript）
 # -------------------------
