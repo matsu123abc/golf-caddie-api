@@ -507,124 +507,60 @@ def hole_select(course_id: str):
 
     return HTMLResponse(content=html)
 
-@app.get("/course-map/upload", response_class=HTMLResponse)
-def upload_course_map_page():
-    html = """
+@app.get("/course/uchihara/{hole}", response_class=HTMLResponse)
+def show_course_map(hole: int):
+    # Blob に保存されているファイル名
+    blob_name = f"uchihara_{hole}H.png"  # PNG 前提（必要なら JPG に変更）
+
+    # ストレージアカウント名（章さんの環境に合わせて変更）
+    account_name = "pcbdiagnosisrga8a5"
+
+    # 公開アクセス（Blob）を前提とした URL
+    image_url = f"https://{account_name}.blob.core.windows.net/course-maps/{blob_name}"
+
+    html = f"""
     <!DOCTYPE html>
     <html lang="ja">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>コースマップ登録</title>
+        <title>コースマップ {hole}H</title>
 
         <style>
-            body {
+            body {{
                 margin: 0;
-                padding: 24px;
-                background: #f5f5f5;
+                padding: 0;
+                background: #000;
+                color: white;
                 font-family: sans-serif;
-            }
-            h2 {
                 text-align: center;
-                font-size: 32px;
-                margin-bottom: 20px;
-            }
-            .top-btn {
+            }}
+            .top-btn {{
                 width: 100%;
                 padding: 20px;
                 font-size: 26px;
-                border-radius: 14px;
                 border: none;
                 background: #444;
                 color: white;
-                margin-bottom: 20px;
-            }
-            label {
-                font-size: 26px;
-                font-weight: bold;
-            }
-            select, input[type='file'] {
+            }}
+            img {{
                 width: 100%;
-                font-size: 26px;
-                padding: 16px;
-                margin-top: 12px;
-                margin-bottom: 24px;
-            }
-            .upload-btn {
-                width: 100%;
-                padding: 32px;
-                font-size: 30px;
-                border-radius: 16px;
-                border: none;
-                background: #2d7df6;
-                color: white;
-            }
-            .upload-btn:active {
-                background: #1e5ec0;
-            }
+                height: auto;
+                margin-top: 10px;
+            }}
         </style>
     </head>
 
     <body>
 
-    <button class="top-btn" onclick="location.href='/'">← ホームに戻る</button>
+    <button class="top-btn" onclick="location.href='/course/uchihara'">← ホール選択に戻る</button>
 
-    <h2>📤 コースマップ登録</h2>
+    <h2 style="font-size: 32px; margin: 10px 0;">{hole}H コースマップ</h2>
 
-    <form action="/course-map/upload" method="post" enctype="multipart/form-data">
-
-        <label>コース名（固定）</label>
-        <div style="font-size: 28px; margin-bottom: 20px;">
-            内原カントリークラブ
-        </div>
-
-        <label>ホール番号</label>
-        <select name="hole">
-            <option value="1">1H</option>
-            <option value="2">2H</option>
-            <option value="3">3H</option>
-            <option value="4">4H</option>
-            <option value="5">5H</option>
-            <option value="6">6H</option>
-            <option value="7">7H</option>
-            <option value="8">8H</option>
-            <option value="9">9H</option>
-            <option value="10">10H</option>
-            <option value="11">11H</option>
-            <option value="12">12H</option>
-            <option value="13">13H</option>
-            <option value="14">14H</option>
-            <option value="15">15H</option>
-            <option value="16">16H</option>
-            <option value="17">17H</option>
-            <option value="18">18H</option>
-        </select>
-
-        <label>コースマップ画像</label>
-        <input type="file" name="file" accept="image/*" required>
-
-        <button class="upload-btn" type="submit">アップロード</button>
-    </form>
+    <img src="{image_url}" alt="Course Map">
 
     </body>
     </html>
     """
+
     return HTMLResponse(content=html)
-
-
-@app.post("/course-map/upload", response_class=HTMLResponse)
-async def upload_course_map(hole: int = Form(...), file: UploadFile = File(...)):
-    # ファイル名：uchihara_1H.png のように保存
-    ext = file.filename.split(".")[-1]
-    blob_name = f"uchihara_{hole}H.{ext}"
-
-    blob_client = container.get_blob_client(blob_name)
-    data = await file.read()
-    blob_client.upload_blob(data, overwrite=True)
-
-    return HTMLResponse(f"""
-        <h2>アップロード完了</h2>
-        <p>保存ファイル名：{blob_name}</p>
-        <button onclick="location.href='/course-map/upload'">続けて登録する</button>
-        <button onclick="location.href='/'">ホームに戻る</button>
-    """)
