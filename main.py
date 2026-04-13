@@ -418,3 +418,83 @@ def course_list():
     """
 
     return HTMLResponse(content=html)
+
+@app.get("/course/{course_id}", response_class=HTMLResponse)
+def hole_select(course_id: str):
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ホール選択</title>
+
+        <style>
+            body {{
+                margin: 0;
+                padding: 24px;
+                background: #f5f5f5;
+                font-family: sans-serif;
+            }}
+            h2 {{
+                text-align: center;
+                font-size: 32px;
+                margin-bottom: 20px;
+            }}
+            .top-btn {{
+                width: 100%;
+                padding: 20px;
+                font-size: 26px;
+                border-radius: 14px;
+                border: none;
+                background: #444;
+                color: white;
+                margin-bottom: 20px;
+            }}
+            .hole-grid {{
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 16px;
+                max-width: 480px;
+                margin: 0 auto;
+            }}
+            .hole-btn {{
+                padding: 32px 0;
+                font-size: 30px;
+                font-weight: bold;
+                border-radius: 16px;
+                border: none;
+                background: #2d7df6;
+                color: white;
+            }}
+            .hole-btn:active {{
+                background: #1e5ec0;
+            }}
+        </style>
+    </head>
+
+    <body>
+
+    <button class="top-btn" onclick="location.href='/course'">← コース一覧に戻る</button>
+
+    <h2>ホール選択</h2>
+
+    <div class="hole-grid">
+    """
+
+    # 1〜18H のボタンを生成
+    for hole in range(1, 19):
+        html += f"""
+        <button class="hole-btn" onclick="location.href='/course/{course_id}/{hole}'">
+            {hole}H
+        </button>
+        """
+
+    html += """
+    </div>
+
+    </body>
+    </html>
+    """
+
+    return HTMLResponse(content=html)
