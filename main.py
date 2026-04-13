@@ -343,9 +343,9 @@ def calc_distance(data: GPSData):
 def course_list():
     # ★ まずは固定のダミーコース一覧（後で Blob 連携に置き換える）
     courses = [
-        {"id": "course1", "name": "○○カントリークラブ"},
-        {"id": "course2", "name": "△△ゴルフ倶楽部"},
-        {"id": "course3", "name": "□□リンクス"},
+        {"id": "course1", "name": "内原カントリー倶楽部"},
+        {"id": "course2", "name": "笠間カントリークラブ"},
+        {"id": "course3", "name": "白帆カントリークラブ"},
     ]
 
     html = """
