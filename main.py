@@ -349,11 +349,8 @@ def calc_distance(data: GPSData):
 # -------------------------
 @app.get("/course", response_class=HTMLResponse)
 def course_list():
-    # ★ まずは固定のダミーコース一覧（後で Blob 連携に置き換える）
     courses = [
-        {"id": "course1", "name": "内原カントリー倶楽部"},
-        {"id": "course2", "name": "笠間カントリークラブ"},
-        {"id": "course3", "name": "白帆カントリークラブ"},
+        {"id": "uchihara", "name": "内原カントリー倶楽部"},
     ]
 
     html = """
@@ -410,7 +407,6 @@ def course_list():
     <div id="courseList">
     """
 
-    # Python でコース一覧を HTML に埋め込む
     for c in courses:
         html += f"""
         <button class="course-btn" onclick="location.href='/course/{c['id']}'">
