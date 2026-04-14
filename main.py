@@ -503,11 +503,6 @@ def hole_select(course_id: str):
 
     return HTMLResponse(content=html)
 
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
-from azure.storage.blob import BlobServiceClient
-import json
-
 @app.get("/course/uchihara/{hole}", response_class=HTMLResponse)
 def show_course_map(hole: int):
 
@@ -571,7 +566,7 @@ def show_course_map(hole: int):
                 height: auto;
             }}
 
-            /* マーカー（GPS） */
+            /* マーカー（GPS / TL / BR） */
             .marker {{
                 position: absolute;
                 width: 22px;
@@ -586,7 +581,7 @@ def show_course_map(hole: int):
         </style>
     </head>
 
-    <body onload="initMarkers(); startGPS();">
+    <body>
 
     <button class="top-btn" onclick="location.href='/course/uchihara'">← ホール選択に戻る</button>
 
@@ -621,11 +616,13 @@ def show_course_map(hole: int):
             marker.style.display = "block";
         }}
 
-        function initMarkers() {{
+        // 画像読み込み完了後に TL/BR を描画
+        document.getElementById("courseMap").onload = function() {{
             placeMarker("tl-marker", TL.lat, TL.lon);
             placeMarker("br-marker", BR.lat, BR.lon);
-        }}
+        }};
 
+        // GPS マーカー
         function startGPS() {{
             if (!navigator.geolocation) {{
                 alert("GPS が利用できません");
@@ -642,6 +639,8 @@ def show_course_map(hole: int):
                 {{ enableHighAccuracy: true }}
             );
         }}
+
+        startGPS();
     </script>
 
     </body>
@@ -649,4 +648,3 @@ def show_course_map(hole: int):
     """
 
     return HTMLResponse(content=html)
-
