@@ -503,24 +503,28 @@ def hole_select(course_id: str):
 
     return HTMLResponse(content=html)
 
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+from azure.storage.blob import BlobServiceClient
+import json
+
 @app.get("/course/uchihara/{hole}", response_class=HTMLResponse)
 def show_course_map(hole: int):
 
-    # ストレージ設定
     account_name = "pcbdiagnosisrga8a5"
     container_name = "course-maps"
 
-    # 画像ファイル名
+    # 画像ファイル
     blob_name = f"uchihara_{hole}H.png"
     image_url = f"https://{account_name}.blob.core.windows.net/{container_name}/{blob_name}"
 
-    # ★ 座標ファイル名（ホールごとに自動切替）
+    # 座標ファイル
     coords_blob_name = f"uchihara_{hole}H.json"
 
     # Blob から TL/BR を読み込む
     blob_service = BlobServiceClient(
         f"https://{account_name}.blob.core.windows.net/",
-        credential=None  # 匿名アクセス
+        credential=None
     )
     container = blob_service.get_container_client(container_name)
     blob_client = container.get_blob_client(coords_blob_name)
@@ -533,7 +537,6 @@ def show_course_map(hole: int):
     BR_LAT = coords["BR_LAT"]
     BR_LON = coords["BR_LON"]
 
-    # HTML + JS（GPS マーカー表示）
     html = f"""
     <!DOCTYPE html>
     <html lang="ja">
@@ -567,19 +570,23 @@ def show_course_map(hole: int):
                 width: 100%;
                 height: auto;
             }}
-            #marker {{
+
+            /* マーカー（GPS） */
+            .marker {{
                 position: absolute;
-                width: 24px;
-                height: 24px;
-                background: #00aaff;
+                width: 22px;
+                height: 22px;
                 border-radius: 50%;
                 border: 3px solid white;
                 display: none;
             }}
+            #gps-marker {{ background: #00aaff; }}   /* 青 */
+            #tl-marker  {{ background: #ff4444; }}   /* 赤 */
+            #br-marker  {{ background: #44ff44; }}   /* 緑 */
         </style>
     </head>
 
-    <body onload="startGPS()">
+    <body onload="initMarkers(); startGPS();">
 
     <button class="top-btn" onclick="location.href='/course/uchihara'">← ホール選択に戻る</button>
 
@@ -587,38 +594,38 @@ def show_course_map(hole: int):
 
     <div id="map-container">
         <img id="courseMap" src="{image_url}">
-        <div id="marker"></div>
+        <div id="gps-marker" class="marker"></div>
+        <div id="tl-marker" class="marker"></div>
+        <div id="br-marker" class="marker"></div>
     </div>
 
     <script>
-        // TL/BR 座標（Python → JS に埋め込み）
         const TL = {{ lat: {TL_LAT}, lon: {TL_LON} }};
         const BR = {{ lat: {BR_LAT}, lon: {BR_LON} }};
 
-        // GPS → 画像座標変換
         function gpsToImage(lat, lon, imgWidth, imgHeight) {{
             const x = (lon - TL.lon) / (BR.lon - TL.lon) * imgWidth;
             const y = (lat - TL.lat) / (BR.lat - TL.lat) * imgHeight;
             return {{ x, y }};
         }}
 
-        // マーカー更新
-        function updateMarker(lat, lon) {{
+        function placeMarker(markerId, lat, lon) {{
             const img = document.getElementById("courseMap");
-            const marker = document.getElementById("marker");
+            const marker = document.getElementById(markerId);
 
             const rect = img.getBoundingClientRect();
-            const imgWidth = rect.width;
-            const imgHeight = rect.height;
+            const pos = gpsToImage(lat, lon, rect.width, rect.height);
 
-            const pos = gpsToImage(lat, lon, imgWidth, imgHeight);
-
-            marker.style.left = (pos.x - 12) + "px";
-            marker.style.top = (pos.y - 12) + "px";
+            marker.style.left = (pos.x - 11) + "px";
+            marker.style.top  = (pos.y - 11) + "px";
             marker.style.display = "block";
         }}
 
-        // GPS 取得
+        function initMarkers() {{
+            placeMarker("tl-marker", TL.lat, TL.lon);
+            placeMarker("br-marker", BR.lat, BR.lon);
+        }}
+
         function startGPS() {{
             if (!navigator.geolocation) {{
                 alert("GPS が利用できません");
@@ -627,7 +634,7 @@ def show_course_map(hole: int):
 
             navigator.geolocation.watchPosition(
                 (pos) => {{
-                    updateMarker(pos.coords.latitude, pos.coords.longitude);
+                    placeMarker("gps-marker", pos.coords.latitude, pos.coords.longitude);
                 }},
                 (err) => {{
                     console.log("GPS error:", err);
@@ -642,3 +649,4 @@ def show_course_map(hole: int):
     """
 
     return HTMLResponse(content=html)
+
