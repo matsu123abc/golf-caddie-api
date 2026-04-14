@@ -1,11 +1,11 @@
+import math
+import os
+import json
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-import math
-
 from fastapi import File, UploadFile, Form
 from azure.storage.blob import BlobServiceClient
-import os
 
 app = FastAPI()
 
@@ -505,22 +505,42 @@ def hole_select(course_id: str):
 
 @app.get("/course/uchihara/{hole}", response_class=HTMLResponse)
 def show_course_map(hole: int):
-    # Blob に保存されているファイル名
-    blob_name = f"uchihara_{hole}H.png"  # PNG 前提（必要なら JPG に変更）
 
-    # ストレージアカウント名（章さんの環境に合わせて変更）
+    # ストレージ設定
     account_name = "pcbdiagnosisrga8a5"
+    container_name = "course-maps"
 
-    # 公開アクセス（Blob）を前提とした URL
-    image_url = f"https://{account_name}.blob.core.windows.net/course-maps/{blob_name}"
+    # 画像ファイル名
+    blob_name = f"uchihara_{hole}H.png"
+    image_url = f"https://{account_name}.blob.core.windows.net/{container_name}/{blob_name}"
 
+    # ★ 座標ファイル名（ホールごとに自動切替）
+    coords_blob_name = f"uchihara_{hole}H.json"
+
+    # Blob から TL/BR を読み込む
+    blob_service = BlobServiceClient(
+        f"https://{account_name}.blob.core.windows.net/",
+        credential=None  # 匿名アクセス
+    )
+    container = blob_service.get_container_client(container_name)
+    blob_client = container.get_blob_client(coords_blob_name)
+
+    coords_json = blob_client.download_blob().readall()
+    coords = json.loads(coords_json)
+
+    TL_LAT = coords["TL_LAT"]
+    TL_LON = coords["TL_LON"]
+    BR_LAT = coords["BR_LAT"]
+    BR_LON = coords["BR_LON"]
+
+    # HTML + JS（GPS マーカー表示）
     html = f"""
     <!DOCTYPE html>
     <html lang="ja">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>コースマップ {hole}H</title>
+        <title>{hole}H コースマップ</title>
 
         <style>
             body {{
@@ -539,21 +559,83 @@ def show_course_map(hole: int):
                 background: #444;
                 color: white;
             }}
-            img {{
+            #map-container {{
+                position: relative;
+                width: 100%;
+            }}
+            #courseMap {{
                 width: 100%;
                 height: auto;
-                margin-top: 10px;
+            }}
+            #marker {{
+                position: absolute;
+                width: 24px;
+                height: 24px;
+                background: #00aaff;
+                border-radius: 50%;
+                border: 3px solid white;
+                display: none;
             }}
         </style>
     </head>
 
-    <body>
+    <body onload="startGPS()">
 
     <button class="top-btn" onclick="location.href='/course/uchihara'">← ホール選択に戻る</button>
 
     <h2 style="font-size: 32px; margin: 10px 0;">{hole}H コースマップ</h2>
 
-    <img src="{image_url}" alt="Course Map">
+    <div id="map-container">
+        <img id="courseMap" src="{image_url}">
+        <div id="marker"></div>
+    </div>
+
+    <script>
+        // TL/BR 座標（Python → JS に埋め込み）
+        const TL = {{ lat: {TL_LAT}, lon: {TL_LON} }};
+        const BR = {{ lat: {BR_LAT}, lon: {BR_LON} }};
+
+        // GPS → 画像座標変換
+        function gpsToImage(lat, lon, imgWidth, imgHeight) {{
+            const x = (lon - TL.lon) / (BR.lon - TL.lon) * imgWidth;
+            const y = (lat - TL.lat) / (BR.lat - TL.lat) * imgHeight;
+            return {{ x, y }};
+        }}
+
+        // マーカー更新
+        function updateMarker(lat, lon) {{
+            const img = document.getElementById("courseMap");
+            const marker = document.getElementById("marker");
+
+            const rect = img.getBoundingClientRect();
+            const imgWidth = rect.width;
+            const imgHeight = rect.height;
+
+            const pos = gpsToImage(lat, lon, imgWidth, imgHeight);
+
+            marker.style.left = (pos.x - 12) + "px";
+            marker.style.top = (pos.y - 12) + "px";
+            marker.style.display = "block";
+        }}
+
+        // GPS 取得
+        function startGPS() {{
+            if (!navigator.geolocation) {{
+                alert("GPS が利用できません");
+                return;
+            }}
+
+            navigator.geolocation.watchPosition(
+                (pos) => {{
+                    updateMarker(pos.coords.latitude, pos.coords.longitude);
+                }},
+                (err) => {{
+                    console.log("GPS error:", err);
+                }},
+                {{ enableHighAccuracy: true }}
+            );
+        }}
+    </script>
 
     </body>
     </html>
