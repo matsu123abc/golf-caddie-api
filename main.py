@@ -216,6 +216,55 @@ def shot_direction(data: ShotDirectionRequest):
         "shot_direction": bearing
     }
 
+@app.get("/wind-map", response_class=HTMLResponse)
+def wind_map_page():
+    return """
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+        <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+        <style>
+            body { margin:0; padding:0; }
+            #map { width:100%; height:100vh; }
+        </style>
+    </head>
+    <body>
+        <div id="map"></div>
+
+        <script>
+            const map = new maplibregl.Map({
+                container: "map",
+                style: {
+                    version: 8,
+                    sources: {
+                        wind: {
+                            type: "raster",
+                            tiles: [
+                                "https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/{z}/{x}/{y}.png"
+                            ],
+                            tileSize: 256,
+                            attribution: "© JMA"
+                        }
+                    },
+                    layers: [
+                        {
+                            id: "wind-layer",
+                            type: "raster",
+                            source: "wind",
+                            minzoom: 3,
+                            maxzoom: 10
+                        }
+                    ]
+                },
+                center: [140.47, 36.37],
+                zoom: 7
+            });
+        </script>
+    </body>
+    </html>
+    """
+
 # -------------------------
 # UI（HTML + JavaScript）
 # -------------------------
@@ -536,7 +585,7 @@ def wind_ai_page():
     <!-- API が返した PNG を表示 -->
     <img id="windTile" style="width:100%;border:2px solid #ccc;border-radius:12px;">
 
-    <!-- 最新風データ -->
+    <!-- 最新風データ（数値） -->
     <div id="windInfo" class="info-box">風データ取得中…</div>
 
     <!-- ショット方向 -->
