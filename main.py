@@ -146,10 +146,17 @@ def rgb_to_wind(rgb):
 def wind_jma(data: WindRequest):
     zoom = 10
 
+    # 最新時刻を取得
+    latest_url = "https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/latest_time.json"
+    latest = requests.get(latest_url).json()
+    latest_time = latest["time"]  # "202405090610" のような文字列
+
+    # タイル座標
     xtile, ytile = latlon_to_tile(data.lat, data.lon, zoom)
     px, py = latlon_to_pixel(data.lat, data.lon, zoom)
 
-    url = f"https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/{zoom}/{xtile}/{ytile}.png"
+    # 正しいタイル URL
+    url = f"https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/{latest_time}/{zoom}/{xtile}/{ytile}.png"
 
     resp = requests.get(url, timeout=10)
     resp.raise_for_status()
@@ -158,15 +165,12 @@ def wind_jma(data: WindRequest):
     rgb = img.getpixel((px, py))
 
     wind_speed = rgb_to_wind(rgb)
-    wind_direction = rgb_to_direction(rgb)
 
     return {
         "wind_speed": wind_speed,
-        "wind_direction": wind_direction,
         "rgb": rgb,
         "tile": url
     }
-
 
 # -------------------------
 # ショット方向（1m歩行方式）
