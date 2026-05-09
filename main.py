@@ -159,6 +159,7 @@ class ShotDirectionRequest(BaseModel):
     lat2: float
     lon2: float
 
+
 @app.post("/shot-direction")
 def shot_direction(data: ShotDirectionRequest):
 
@@ -182,17 +183,21 @@ class WindRequest(BaseModel):
 
 @app.post("/wind-jma")
 def wind_jma(data: WindRequest):
-    # LFM は約 10〜20 分遅れで公開されるため、20 分引く
-    now = datetime.utcnow() - timedelta(minutes=20)
+    # 現在の UTC
+    now = datetime.utcnow()
 
-    # URL は「YYYYMMDDHH」まで（分は使わない）
-    base = now.strftime("%Y%m%d%H")
+    # LFM は 3 時間ごとのディレクトリ
+    lfm_hour = (now.hour // 3) * 3
 
-    # GRIB2 URL（U成分・V成分）
+    # ディレクトリ名（YYYYMMDDHH）
+    base_time = now.replace(hour=lfm_hour, minute=0, second=0, microsecond=0)
+    base = base_time.strftime("%Y%m%d%H")
+
+    # GRIB2 URL
     url_u = f"https://www.jma.go.jp/bosai/model/data/lfm/{base}/surf/UGRD_P0_L103_GLL0.grib2"
     url_v = f"https://www.jma.go.jp/bosai/model/data/lfm/{base}/surf/VGRD_P0_L103_GLL0.grib2"
 
-    # ダウンロード（タイムアウト付き）
+    # ダウンロード
     resp_u = requests.get(url_u, timeout=10)
     resp_v = requests.get(url_v, timeout=10)
     resp_u.raise_for_status()
@@ -205,11 +210,11 @@ def wind_jma(data: WindRequest):
     grbs_u = pygrib.open("u.grib2")
     grbs_v = pygrib.open("v.grib2")
 
-    # 指定地点の風ベクトルを取得
+    # 指定地点の風ベクトル
     u = grbs_u[1].data(lat1=data.lat, lat2=data.lat, lon1=data.lon, lon2=data.lon)[0][0][0]
     v = grbs_v[1].data(lat1=data.lat, lat2=data.lat, lon1=data.lon, lon2=data.lon)[0][0][0]
 
-    # 風速・風向き
+    # 風速・風向
     speed = math.sqrt(u*u + v*v)
     direction = (math.degrees(math.atan2(-u, -v)) + 360) % 360
 
@@ -218,6 +223,7 @@ def wind_jma(data: WindRequest):
         "wind_direction": round(direction, 1),
         "source": f"JMA LFM {base}"
     }
+
 
 # -------------------------
 # UI（HTML + JavaScript）
