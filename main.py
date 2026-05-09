@@ -503,6 +503,9 @@ def wind_ai_page():
     <button onclick="startShotDirection()">ショット方向を計測（1m歩行）</button>
     <div id="shotDirectionResult" class="info-box">未計測</div>
 
+    <!-- ★ これを追加する！ -->
+    <div id="windShotResult" class="info-box">風とショット方向の関係：未計算</div>
+
     <script>
         // -----------------------------
         // 風向きマップ（JMA LFM）
