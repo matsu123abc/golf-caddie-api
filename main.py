@@ -504,141 +504,172 @@ def wind_ai_page():
     <div id="shotDirectionResult" class="info-box">未計測</div>
 
     <script>
-    // -----------------------------
-    // 風向きマップ（JMA LFM）
-    // -----------------------------
-    const map = new maplibregl.Map({
-        container: "windMap",
-        style: {
-            version: 8,
-            sources: {
-                "wind": {
-                    type: "raster",
-                    tiles: [
-                        "https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/{z}/{x}/{y}.png"
-                    ],
-                    tileSize: 256,
-                    attribution: "© JMA"
-                }
+        // -----------------------------
+        // 風向きマップ（JMA LFM）
+        // -----------------------------
+        const map = new maplibregl.Map({
+            container: "windMap",
+            style: {
+                version: 8,
+                sources: {
+                    "wind": {
+                        type: "raster",
+                        tiles: [
+                            "https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/{z}/{x}/{y}.png"
+                        ],
+                        tileSize: 256,
+                        attribution: "© JMA"
+                    }
+                },
+                layers: [
+                    {
+                        id: "wind-layer",
+                        type: "raster",
+                        source: "wind",
+                        minzoom: 3,
+                        maxzoom: 10
+                    }
+                ]
             },
-            layers: [
-                {
-                    id: "wind-layer",
-                    type: "raster",
-                    source: "wind",
-                    minzoom: 3,
-                    maxzoom: 10
-                }
-            ]
-        },
-        center: [140.47, 36.37], // 水戸市
-        zoom: 10
-    });
-
-    // -----------------------------
-    // 最新風データ（Open-Meteo）
-    // -----------------------------
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-
-        const res = await fetch("/wind", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lat, lon })
+            center: [140.47, 36.37],
+            zoom: 10
         });
 
-        const data = await res.json();
+        // -----------------------------
+        // 最新風データ（Open-Meteo）
+        // -----------------------------
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
 
-        document.getElementById("windInfo").innerText =
-            `最新風データ\n` +
-            `時刻：${data.time}\n` +
-            `風速：${data.wind_speed} m/s\n` +
-            `風向：${data.wind_direction}°`;
-    });
+            const res = await fetch("/wind", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lat, lon })
+            });
 
-    // -----------------------------
-    // ショット方向（1m歩行方式）
-    // -----------------------------
-    let shotA = null;
+            const data = await res.json();
 
-    function startShotDirection() {
-        document.getElementById("shotDirectionResult").innerText = "A地点取得中…";
-
-        // A地点取得
-        navigator.geolocation.getCurrentPosition((pos) => {
-            shotA = {
-                lat: pos.coords.latitude,
-                lon: pos.coords.longitude
-            };
-
-            document.getElementById("shotDirectionResult").innerText =
-                "A地点取得 → グリーン方向に1m歩いてください…";
-
-            watchPositionForShot();
+            document.getElementById("windInfo").innerText =
+                `最新風データ\n` +
+                `時刻：${data.time}\n` +
+                `風速：${data.wind_speed} m/s\n` +
+                `風向：${data.wind_direction}°`;
         });
-    }
 
-    function watchPositionForShot() {
-        const watchId = navigator.geolocation.watchPosition(
-            (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
+        // -----------------------------
+        // ショット方向（1m歩行方式）
+        // -----------------------------
+        let shotA = null;
 
-                const dist = calcHaversine(shotA.lat, shotA.lon, lat, lon);
+        function startShotDirection() {
+            document.getElementById("shotDirectionResult").innerText = "A地点取得中…";
 
-                if (dist >= 1.0) {
-                    navigator.geolocation.clearWatch(watchId);
+            navigator.geolocation.getCurrentPosition((pos) => {
+                shotA = {
+                    lat: pos.coords.latitude,
+                    lon: pos.coords.longitude
+                };
 
-                    fetch("/shot-direction", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            lat1: shotA.lat,
-                            lon1: shotA.lon,
-                            lat2: lat,
-                            lon2: lon
+                document.getElementById("shotDirectionResult").innerText =
+                    "A地点取得 → グリーン方向に1m歩いてください…";
+
+                watchPositionForShot();
+            });
+        }
+
+        function watchPositionForShot() {
+            const watchId = navigator.geolocation.watchPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+
+                    const dist = calcHaversine(shotA.lat, shotA.lon, lat, lon);
+
+                    if (dist >= 1.0) {
+                        navigator.geolocation.clearWatch(watchId);
+
+                        fetch("/shot-direction", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                lat1: shotA.lat,
+                                lon1: shotA.lon,
+                                lat2: lat,
+                                lon2: lon
+                            })
                         })
-                    })
-                    .then(res => res.json())
-                    .then(data => {
-                        const dir = data.shot_direction;
+                        .then(res => res.json())
+                        .then(data => {
+                            const dir = data.shot_direction;
 
-                        document.getElementById("shotDirectionResult").innerText =
-                            `ショット方向：${dir.toFixed(1)}°`;
+                            document.getElementById("shotDirectionResult").innerText =
+                                `ショット方向：${dir.toFixed(1)}°`;
 
-                        const utter = new SpeechSynthesisUtterance(
-                            `ショット方向は ${dir.toFixed(0)} 度です`
-                        );
-                        utter.lang = "ja-JP";
-                        speechSynthesis.speak(utter);
-                    });
-                }
-            },
-            (err) => {
-                alert("ショット方向のGPS取得に失敗: " + err.message);
-            },
-            { enableHighAccuracy: true }
-        );
-    }
+                            // 風データを取得して角度差を計算
+                            fetch("/wind", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ lat: shotA.lat, lon: shotA.lon })
+                            })
+                            .then(res => res.json())
+                            .then(wind => {
+                                const windDir = wind.wind_direction;
 
-    // 距離計算（ハバーサイン）
-    function calcHaversine(lat1, lon1, lat2, lon2) {
-        const R = 6371000;
-        const toRad = (x) => x * Math.PI / 180;
+                                const effect = calcWindEffect(windDir, dir);
 
-        const dLat = toRad(lat2 - lat1);
-        const dLon = toRad(lon2 - lon1);
+                                document.getElementById("windShotResult").innerText =
+                                    `風向き：${windDir}°\nショット方向：${dir.toFixed(1)}°\n→ ${effect}`;
 
-        const a =
-            Math.sin(dLat/2)**2 +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-            Math.sin(dLon/2)**2;
+                                const utter = new SpeechSynthesisUtterance(
+                                    `風は ${effect} です`
+                                );
+                                utter.lang = "ja-JP";
+                                speechSynthesis.speak(utter);
+                            });
+                        });
+                    }
+                },
+                (err) => {
+                    alert("ショット方向のGPS取得に失敗: " + err.message);
+                },
+                { enableHighAccuracy: true }
+            );
+        }
 
-        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    }
+        // -----------------------------
+        // 風 × ショット方向 → フォロー/アゲインスト判定
+        // -----------------------------
+        function calcWindEffect(windDir, shotDir) {
+            let diff = Math.abs(windDir - shotDir);
+            if (diff > 180) diff = 360 - diff;
+
+            if (diff <= 20) return "完全フォロー（追い風）";
+            if (diff <= 60) return "ややフォロー";
+            if (diff <= 120) return "横風";
+            if (diff <= 160) return "ややアゲインスト（向かい風）";
+            return "完全アゲインスト（向かい風）";
+        }
+
+        // -----------------------------
+        // 距離計算（ハバーサイン）
+        // -----------------------------
+        function calcHaversine(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const toRad = (x) => x * Math.PI / 180;
+
+            const dLat = toRad(lat2 - lat1);
+            const dLon = toRad(lon2 - lon1);
+
+            const a =
+                Math.sin(dLat/2)**2 +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                Math.sin(dLon/2)**2;
+
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
     </script>
-
+        
     </body>
     </html>
     """
