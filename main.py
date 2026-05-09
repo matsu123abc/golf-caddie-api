@@ -233,33 +233,52 @@ def wind_map_page():
         <div id="map"></div>
 
         <script>
-            const map = new maplibregl.Map({
-                container: "map",
-                style: {
-                    version: 8,
-                    sources: {
-                        wind: {
-                            type: "raster",
-                            tiles: [
-                                "https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/{z}/{x}/{y}.png"
-                            ],
-                            tileSize: 256,
-                            attribution: "© JMA"
-                        }
+            async function getLatestTime() {
+                const html = await fetch("https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/")
+                    .then(r => r.text());
+
+                const matches = [...html.matchAll(/(\\d{12})\\//g)];
+                const times = matches.map(m => m[1]);
+                return times.length ? times.sort().pop() : null;
+            }
+
+            async function initMap() {
+                const latest = await getLatestTime();
+                if (!latest) {
+                    alert("最新時刻が取得できませんでした");
+                    return;
+                }
+
+                const map = new maplibregl.Map({
+                    container: "map",
+                    style: {
+                        version: 8,
+                        sources: {
+                            wind: {
+                                type: "raster",
+                                tiles: [
+                                    `https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/${latest}/{z}/{x}/{y}.png`
+                                ],
+                                tileSize: 256,
+                                attribution: "© JMA"
+                            }
+                        },
+                        layers: [
+                            {
+                                id: "wind-layer",
+                                type: "raster",
+                                source: "wind",
+                                minzoom: 3,
+                                maxzoom: 10
+                            }
+                        ]
                     },
-                    layers: [
-                        {
-                            id: "wind-layer",
-                            type: "raster",
-                            source: "wind",
-                            minzoom: 3,
-                            maxzoom: 10
-                        }
-                    ]
-                },
-                center: [140.47, 36.37],
-                zoom: 7
-            });
+                    center: [140.47, 36.37],
+                    zoom: 7
+                });
+            }
+
+            initMap();
         </script>
     </body>
     </html>
