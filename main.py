@@ -184,15 +184,24 @@ class WindRequest(BaseModel):
 def wind_jma(data: WindRequest):
     # 最新時刻（LFMは10分遅れで公開）
     now = datetime.utcnow() - timedelta(minutes=20)
-    base = now.strftime("%Y%m%d%H")
+
+    # 分を 10 分単位に丸める
+    minute = (now.minute // 10) * 10
+    base_time = now.replace(minute=minute, second=0, microsecond=0)
+    base = base_time.strftime("%Y%m%d%H%M")
 
     # GRIB2 URL（U成分・V成分）
     url_u = f"https://www.jma.go.jp/bosai/model/data/lfm/{base}/surf/UGRD_P0_L103_GLL0.grib2"
     url_v = f"https://www.jma.go.jp/bosai/model/data/lfm/{base}/surf/VGRD_P0_L103_GLL0.grib2"
 
-    # ダウンロード
-    open("u.grib2", "wb").write(requests.get(url_u).content)
-    open("v.grib2", "wb").write(requests.get(url_v).content)
+    # ダウンロード（タイムアウト付き）
+    resp_u = requests.get(url_u, timeout=10)
+    resp_v = requests.get(url_v, timeout=10)
+    resp_u.raise_for_status()
+    resp_v.raise_for_status()
+
+    open("u.grib2", "wb").write(resp_u.content)
+    open("v.grib2", "wb").write(resp_v.content)
 
     # GRIB2 読み込み
     grbs_u = pygrib.open("u.grib2")
@@ -209,7 +218,7 @@ def wind_jma(data: WindRequest):
     return {
         "wind_speed": round(speed, 1),
         "wind_direction": round(direction, 1),
-        "source": "JMA LFM（Yahoo天気と同じ）"
+        "source": f"JMA LFM {base}"
     }
 
 # -------------------------
