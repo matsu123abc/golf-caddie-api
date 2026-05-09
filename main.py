@@ -8,6 +8,7 @@ from fastapi import File, UploadFile, Form
 from azure.storage.blob import BlobServiceClient
 from datetime import datetime, timedelta, timezone
 import requests
+import math
 
 app = FastAPI()
 
@@ -144,6 +145,32 @@ def get_wind(data: WindRequest):
     }
 
 # -------------------------
+# ショット方向（1m歩行方式）
+# -------------------------
+class ShotDirectionRequest(BaseModel):
+    lat1: float
+    lon1: float
+    lat2: float
+    lon2: float
+
+@app.post("/shot-direction")
+def shot_direction(data: ShotDirectionRequest):
+
+    lat1 = math.radians(data.lat1)
+    lat2 = math.radians(data.lat2)
+    dlon = math.radians(data.lon2 - data.lon1)
+
+    x = math.sin(dlon) * math.cos(lat2)
+    y = math.cos(lat1)*math.sin(lat2) - math.sin(lat1)*math.cos(lat2)*math.cos(dlon)
+
+    bearing = math.degrees(math.atan2(x, y))
+    bearing = (bearing + 360) % 360   # 0〜360° に正規化
+
+    return {
+        "shot_direction": bearing
+    }
+
+# -------------------------
 # UI（HTML + JavaScript）
 # -------------------------
 @app.get("/distance", response_class=HTMLResponse)
@@ -261,6 +288,9 @@ def distance_page():
 
     <button onclick="startVoice()">🎤 音声操作スタート</button>
     <div id="voiceStatus">音声操作は停止中</div>
+
+    <button onclick="startShotDirection()">ショット方向を計測（1m歩行）</button>
+    <div id="shotDirectionResult" class="info-box">未計測</div>
 
     <!-- 風向きマップ -->
     <h2>🌬 風向きマップ（気象庁 LFM）</h2>
@@ -395,6 +425,82 @@ def distance_page():
         });
     }
 
+    let shotA = null;
+
+    function startShotDirection() {
+        document.getElementById("shotDirectionResult").innerText = "A地点取得中…";
+
+        // ① A地点を取得
+        getGPS((pA) => {
+            shotA = pA;
+            document.getElementById("shotDirectionResult").innerText =
+                "A地点取得 → グリーン方向に1m歩いてください…";
+
+            // ② 1m以上動いたら B地点を自動取得
+            watchPositionForShot();
+        });
+    }
+
+    function watchPositionForShot() {
+        const watchId = navigator.geolocation.watchPosition(
+            (pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+
+                const dist = calcHaversine(shotA.lat, shotA.lon, lat, lon);
+
+                if (dist >= 1.0) {
+                    navigator.geolocation.clearWatch(watchId);
+
+                    // B地点取得
+                    fetch("/shot-direction", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            lat1: shotA.lat,
+                            lon1: shotA.lon,
+                            lat2: lat,
+                            lon2: lon
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        const dir = data.shot_direction;
+
+                        document.getElementById("shotDirectionResult").innerText =
+                            `ショット方向：${dir.toFixed(1)}°`;
+
+                        const utter = new SpeechSynthesisUtterance(
+                            `ショット方向は ${dir.toFixed(0)} 度です`
+                        );
+                        utter.lang = "ja-JP";
+                        speechSynthesis.speak(utter);
+                    });
+                }
+            },
+            (err) => {
+                alert("ショット方向のGPS取得に失敗: " + err.message);
+            },
+            { enableHighAccuracy: true }
+        );
+    }
+
+    // JS版ハバーサイン（距離計算）
+    function calcHaversine(lat1, lon1, lat2, lon2) {
+        const R = 6371000;
+        const toRad = (x) => x * Math.PI / 180;
+
+        const dLat = toRad(lat2 - lat1);
+        const dLon = toRad(lon2 - lon1);
+
+        const a =
+            Math.sin(dLat/2)**2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+            Math.sin(dLon/2)**2;
+
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+        
     </script>
 
     </body>
