@@ -182,13 +182,11 @@ class WindRequest(BaseModel):
 
 @app.post("/wind-jma")
 def wind_jma(data: WindRequest):
-    # 最新時刻（LFMは10分遅れで公開）
+    # LFM は約 10〜20 分遅れで公開されるため、20 分引く
     now = datetime.utcnow() - timedelta(minutes=20)
 
-    # 分を 10 分単位に丸める
-    minute = (now.minute // 10) * 10
-    base_time = now.replace(minute=minute, second=0, microsecond=0)
-    base = base_time.strftime("%Y%m%d%H%M")
+    # URL は「YYYYMMDDHH」まで（分は使わない）
+    base = now.strftime("%Y%m%d%H")
 
     # GRIB2 URL（U成分・V成分）
     url_u = f"https://www.jma.go.jp/bosai/model/data/lfm/{base}/surf/UGRD_P0_L103_GLL0.grib2"
