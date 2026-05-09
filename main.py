@@ -9,7 +9,6 @@ from azure.storage.blob import BlobServiceClient
 from datetime import datetime, timedelta, timezone
 import requests
 import math
-import pygrib
 from io import BytesIO
 from PIL import Image
 
