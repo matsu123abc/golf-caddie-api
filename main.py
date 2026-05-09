@@ -77,9 +77,6 @@ def home():
             飛距離計
         </button>
 
-        <button class="home-btn" onclick="location.href='/course'">
-            コースナビ
-        </button>
     </div>
 
     </body>
@@ -87,6 +84,50 @@ def home():
     """
     return HTMLResponse(content=html)
 
+# -------------------------
+# 距離計算API
+# -------------------------
+@app.post("/gps/distance")
+def calc_distance(data: GPSData):
+    dist_m = haversine(data.lat1, data.lon1, data.lat2, data.lon2)
+    dist_yd = dist_m * 1.09361
+    return {
+        "distance_m": dist_m,
+        "distance_yd": dist_yd
+    }
+
+# -------------------------
+# 風向き・風速 API（Open-Meteo）
+# -------------------------
+class WindRequest(BaseModel):
+    lat: float
+    lon: float
+
+@app.post("/wind")
+def get_wind(data: WindRequest):
+    import requests
+
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={data.lat}&longitude={data.lon}"
+        "&hourly=windspeed_10m,winddirection_10m"
+        "&timezone=Asia/Tokyo"
+    )
+
+    res = requests.get(url)
+    weather = res.json()
+
+    speeds = weather["hourly"]["windspeed_10m"]
+    dirs = weather["hourly"]["winddirection_10m"]
+    times = weather["hourly"]["time"]
+
+    latest = len(speeds) - 1
+
+    return {
+        "time": times[latest],
+        "wind_speed": speeds[latest],       # m/s
+        "wind_direction": dirs[latest]      # 0〜360°
+    }
 
 # -------------------------
 # UI（HTML + JavaScript）
@@ -293,6 +334,20 @@ def distance_page():
         });
     }
 
+    async function fetchWind(lat, lon) {
+        const res = await fetch("/wind", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat, lon })
+        });
+
+        const data = await res.json();
+        console.log("風速:", data.wind_speed, "m/s");
+        console.log("風向き:", data.wind_direction, "°");
+
+        return data;
+    }
+        
     // 音声操作
     function startVoice() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -332,319 +387,5 @@ def distance_page():
     return HTMLResponse(content=html)
 
 
-# -------------------------
-# 距離計算API
-# -------------------------
-@app.post("/gps/distance")
-def calc_distance(data: GPSData):
-    dist_m = haversine(data.lat1, data.lon1, data.lat2, data.lon2)
-    dist_yd = dist_m * 1.09361
-    return {
-        "distance_m": dist_m,
-        "distance_yd": dist_yd
-    }
 
-# -------------------------
-# コースナビAPI
-# -------------------------
-@app.get("/course", response_class=HTMLResponse)
-def course_list():
-    courses = [
-        {"id": "uchihara", "name": "内原カントリー倶楽部"},
-    ]
 
-    html = """
-    <!DOCTYPE html>
-    <html lang="ja">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>コース一覧</title>
-        <style>
-            body {
-                margin: 0;
-                padding: 24px;
-                background: #f5f5f5;
-                font-family: sans-serif;
-            }
-            h2 {
-                text-align: center;
-                font-size: 32px;
-                margin-bottom: 20px;
-            }
-            .top-btn {
-                width: 100%;
-                padding: 20px;
-                font-size: 26px;
-                border-radius: 14px;
-                border: none;
-                background: #444;
-                color: white;
-                margin-bottom: 20px;
-            }
-            .course-btn {
-                width: 100%;
-                padding: 32px;
-                margin-top: 16px;
-                font-size: 30px;
-                border-radius: 16px;
-                border: none;
-                background: #2d7df6;
-                color: white;
-            }
-            .course-btn:active {
-                background: #1e5ec0;
-            }
-        </style>
-    </head>
-
-    <body>
-
-    <button class="top-btn" onclick="location.href='/'">← ホームに戻る</button>
-
-    <h2>⛳ コース一覧</h2>
-
-    <div id="courseList">
-    """
-
-    for c in courses:
-        html += f"""
-        <button class="course-btn" onclick="location.href='/course/{c['id']}'">
-            {c['name']}
-        </button>
-        """
-
-    html += """
-    </div>
-
-    </body>
-    </html>
-    """
-
-    return HTMLResponse(content=html)
-
-@app.get("/course/{course_id}", response_class=HTMLResponse)
-def hole_select(course_id: str):
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="ja">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>ホール選択</title>
-
-        <style>
-            body {{
-                margin: 0;
-                padding: 24px;
-                background: #f5f5f5;
-                font-family: sans-serif;
-            }}
-            h2 {{
-                text-align: center;
-                font-size: 32px;
-                margin-bottom: 20px;
-            }}
-            .top-btn {{
-                width: 100%;
-                padding: 20px;
-                font-size: 26px;
-                border-radius: 14px;
-                border: none;
-                background: #444;
-                color: white;
-                margin-bottom: 20px;
-            }}
-            .hole-grid {{
-                display: grid;
-                grid-template-columns: repeat(3, 1fr);
-                gap: 16px;
-                max-width: 480px;
-                margin: 0 auto;
-            }}
-            .hole-btn {{
-                padding: 32px 0;
-                font-size: 30px;
-                font-weight: bold;
-                border-radius: 16px;
-                border: none;
-                background: #2d7df6;
-                color: white;
-            }}
-            .hole-btn:active {{
-                background: #1e5ec0;
-            }}
-        </style>
-    </head>
-
-    <body>
-
-    <button class="top-btn" onclick="location.href='/course'">← コース一覧に戻る</button>
-
-    <h2>ホール選択</h2>
-
-    <div class="hole-grid">
-    """
-
-    # 1〜18H のボタンを生成
-    for hole in range(1, 19):
-        html += f"""
-        <button class="hole-btn" onclick="location.href='/course/{course_id}/{hole}'">
-            {hole}H
-        </button>
-        """
-
-    html += """
-    </div>
-
-    </body>
-    </html>
-    """
-
-    return HTMLResponse(content=html)
-
-@app.get("/course/uchihara/{hole}", response_class=HTMLResponse)
-def show_course_map(hole: int):
-
-    account_name = "pcbdiagnosisrga8a5"
-    container_name = "course-maps"
-
-    # 画像ファイル
-    blob_name = f"uchihara_{hole}H.png"
-    image_url = f"https://{account_name}.blob.core.windows.net/{container_name}/{blob_name}"
-
-    # 座標ファイル
-    coords_blob_name = f"uchihara_{hole}H.json"
-
-    # Blob から TL/BR を読み込む
-    blob_service = BlobServiceClient(
-        f"https://{account_name}.blob.core.windows.net/",
-        credential=None
-    )
-    container = blob_service.get_container_client(container_name)
-    blob_client = container.get_blob_client(coords_blob_name)
-
-    coords_json = blob_client.download_blob().readall()
-    coords = json.loads(coords_json)
-
-    TL_LAT = coords["TL_LAT"]
-    TL_LON = coords["TL_LON"]
-    BR_LAT = coords["BR_LAT"]
-    BR_LON = coords["BR_LON"]
-
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="ja">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>{hole}H コースマップ</title>
-
-        <style>
-            body {{
-                margin: 0;
-                padding: 0;
-                background: #000;
-                color: white;
-                font-family: sans-serif;
-                text-align: center;
-            }}
-            .top-btn {{
-                width: 100%;
-                padding: 20px;
-                font-size: 26px;
-                border: none;
-                background: #444;
-                color: white;
-            }}
-            #map-container {{
-                position: relative;
-                width: 100%;
-            }}
-            #courseMap {{
-                width: 100%;
-                height: auto;
-            }}
-
-            /* マーカー（GPS / TL / BR） */
-            .marker {{
-                position: absolute;
-                width: 22px;
-                height: 22px;
-                border-radius: 50%;
-                border: 3px solid white;
-                display: none;
-            }}
-            #gps-marker {{ background: #00aaff; }}   /* 青 */
-            #tl-marker  {{ background: #ff4444; }}   /* 赤 */
-            #br-marker  {{ background: #44ff44; }}   /* 緑 */
-        </style>
-    </head>
-
-    <body>
-
-    <button class="top-btn" onclick="location.href='/course/uchihara'">← ホール選択に戻る</button>
-
-    <h2 style="font-size: 32px; margin: 10px 0;">{hole}H コースマップ</h2>
-
-    <div id="map-container">
-        <img id="courseMap" src="{image_url}">
-        <div id="gps-marker" class="marker"></div>
-        <div id="tl-marker" class="marker"></div>
-        <div id="br-marker" class="marker"></div>
-    </div>
-
-    <script>
-        const TL = {{ lat: {TL_LAT}, lon: {TL_LON} }};
-        const BR = {{ lat: {BR_LAT}, lon: {BR_LON} }};
-
-        function gpsToImage(lat, lon, imgWidth, imgHeight) {{
-            const x = (lon - TL.lon) / (BR.lon - TL.lon) * imgWidth;
-            const y = (lat - TL.lat) / (BR.lat - TL.lat) * imgHeight;
-            return {{ x, y }};
-        }}
-
-        function placeMarker(markerId, lat, lon) {{
-            const img = document.getElementById("courseMap");
-            const marker = document.getElementById(markerId);
-
-            const rect = img.getBoundingClientRect();
-            const pos = gpsToImage(lat, lon, rect.width, rect.height);
-
-            marker.style.left = (pos.x - 11) + "px";
-            marker.style.top  = (pos.y - 11) + "px";
-            marker.style.display = "block";
-        }}
-
-        // 画像読み込み完了後に TL/BR を描画
-        document.getElementById("courseMap").onload = function() {{
-            placeMarker("tl-marker", TL.lat, TL.lon);
-            placeMarker("br-marker", BR.lat, BR.lon);
-        }};
-
-        // GPS マーカー
-        function startGPS() {{
-            if (!navigator.geolocation) {{
-                alert("GPS が利用できません");
-                return;
-            }}
-
-            navigator.geolocation.watchPosition(
-                (pos) => {{
-                    placeMarker("gps-marker", pos.coords.latitude, pos.coords.longitude);
-                }},
-                (err) => {{
-                    console.log("GPS error:", err);
-                }},
-                {{ enableHighAccuracy: true }}
-            );
-        }}
-
-        startGPS();
-    </script>
-
-    </body>
-    </html>
-    """
-
-    return HTMLResponse(content=html)
