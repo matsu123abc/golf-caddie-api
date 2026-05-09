@@ -11,6 +11,7 @@ import requests
 import math
 from io import BytesIO
 from PIL import Image
+from fastapi.responses import StreamingResponse
 
 app = FastAPI()
 
@@ -141,6 +142,22 @@ def rgb_to_wind(rgb):
     if r > 200 and g > 200 and b > 200: return 28  # 白 25+
 
     return 0
+
+@app.post("/wind-jma-image")
+def wind_jma_image(data: WindRequest):
+    zoom = 10
+
+    # タイル座標
+    xtile, ytile = latlon_to_tile(data.lat, data.lon, zoom)
+    px, py = latlon_to_pixel(data.lat, data.lon, zoom)
+
+    # まずは固定URLでテスト（後で最新時刻に差し替え）
+    url = f"https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/202405090600/{zoom}/{xtile}/{ytile}.png"
+
+    resp = requests.get(url, timeout=10)
+    resp.raise_for_status()
+
+    return StreamingResponse(BytesIO(resp.content), media_type="image/png")
 
 @app.post("/wind-jma")
 def wind_jma(data: WindRequest):
@@ -516,8 +533,8 @@ def wind_ai_page():
 
     <h2>🌬 風向きAI分析</h2>
 
-    <!-- 風向きマップ -->
-    <div id="windMap"></div>
+    <!-- API が返した PNG を表示 -->
+    <img id="windTile" style="width:100%;border:2px solid #ccc;border-radius:12px;">
 
     <!-- 最新風データ -->
     <div id="windInfo" class="info-box">風データ取得中…</div>
@@ -530,44 +547,19 @@ def wind_ai_page():
     <div id="windShotResult" class="info-box">風とショット方向の関係：未計算</div>
 
     <script>
-        // -----------------------------
-        // 風向きマップ（JMA LFM）
-        // -----------------------------
-        const map = new maplibregl.Map({
-            container: "windMap",
-            style: {
-                version: 8,
-                sources: {
-                    "wind": {
-                        type: "raster",
-                        tiles: [
-                            "https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/{z}/{x}/{y}.png"
-                        ],
-                        tileSize: 256,
-                        attribution: "© JMA"
-                    }
-                },
-                layers: [
-                    {
-                        id: "wind-layer",
-                        type: "raster",
-                        source: "wind",
-                        minzoom: 3,
-                        maxzoom: 10
-                    }
-                ]
-            },
-            center: [140.47, 36.37],
-            zoom: 10
-        });
 
         // -----------------------------
-        // 最新風データ（JMA LFM）
+        // API の PNG を表示
         // -----------------------------
         navigator.geolocation.getCurrentPosition(async (pos) => {
             const lat = pos.coords.latitude;
             const lon = pos.coords.longitude;
 
+            // PNG を返す API をそのまま img にセット
+            const url = `/wind-jma-image?lat=${lat}&lon=${lon}`;
+            document.getElementById("windTile").src = url;
+
+            // 風速・風向き（数値）も取得
             const res = await fetch("/wind-jma", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -577,9 +569,7 @@ def wind_ai_page():
             const data = await res.json();
 
             document.getElementById("windInfo").innerText =
-                `最新風データ（JMA LFM）\n` +
-                `風速：${data.wind_speed} m/s\n` +
-                `風向：${data.wind_direction}°`;
+                `最新風データ\n風速：${data.wind_speed} m/s\n風向：${data.wind_direction}°`;
         });
 
         // -----------------------------
@@ -631,7 +621,7 @@ def wind_ai_page():
                             document.getElementById("shotDirectionResult").innerText =
                                 `ショット方向：${dir.toFixed(1)}°`;
 
-                            // 風データ（JMA）を取得して角度差を計算
+                            // 風データを取得して角度差を計算
                             fetch("/wind-jma", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
@@ -693,9 +683,11 @@ def wind_ai_page():
 
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
+
     </script>
 
     </body>
+   
     </html>
     """
     return HTMLResponse(content=html)
