@@ -10,6 +10,8 @@ from datetime import datetime, timedelta, timezone
 import requests
 import math
 import pygrib
+from io import BytesIO
+from PIL import Image
 
 app = FastAPI()
 
@@ -106,49 +108,66 @@ def calc_distance(data: GPSData):
     }
 
 # -------------------------
-# 風向き・風速 API（Open-Meteo 最新時刻）
+# 風向き・風速 API（JMA 風タイル PNG）
 # -------------------------
 class WindRequest(BaseModel):
     lat: float
     lon: float
 
-@app.post("/wind")
-def get_wind(data: WindRequest):
-    url = (
-        "https://api.open-meteo.com/v1/forecast"
-        f"?latitude={data.lat}&longitude={data.lon}"
-        "&hourly=windspeed_10m,winddirection_10m"
-        "&timezone=Asia/Tokyo"
-    )
+# 緯度経度 → タイル座標
+def latlon_to_tile(lat, lon, zoom):
+    lat_rad = math.radians(lat)
+    n = 2 ** zoom
+    xtile = int((lon + 180.0) / 360.0 * n)
+    ytile = int((1.0 - math.log(math.tan(lat_rad) + 1 / math.cos(lat_rad)) / math.pi) / 2.0 * n)
+    return xtile, ytile
 
-    res = requests.get(url)
-    weather = res.json()
+# タイル内ピクセル位置
+def latlon_to_pixel(lat, lon, zoom):
+    lat_rad = math.radians(lat)
+    n = 2 ** zoom
+    x = (lon + 180.0) / 360.0 * n * 256
+    y = (1.0 - math.log(math.tan(lat_rad) + 1 / math.cos(lat_rad)) / math.pi) / 2.0 * n * 256
+    return int(x % 256), int(y % 256)
 
-    speeds = weather["hourly"]["windspeed_10m"]
-    dirs = weather["hourly"]["winddirection_10m"]
-    times = weather["hourly"]["time"]
+# RGB → 風速（JMA 色凡例）
+def rgb_to_wind(rgb):
+    r, g, b = rgb
 
-    # 現在時刻（日本時間）→ naive に変換
-    now = datetime.now(timezone(timedelta(hours=9))).replace(tzinfo=None)
+    if b > 200: return 3      # 青 0–5
+    if g > 200: return 8      # 緑 5–10
+    if r > 200 and g > 200: return 13  # 黄 10–15
+    if r > 200 and g < 100: return 18  # 赤 15–20
+    if r > 200 and b > 200: return 23  # 紫 20–25
+    if r > 200 and g > 200 and b > 200: return 28  # 白 25+
 
-    best_index = 0
-    min_diff = None
+    return 0
 
-    for i, t in enumerate(times):
-        # Open-Meteo の時刻は naive（タイムゾーンなし）
-        t_dt = datetime.fromisoformat(t)
+@app.post("/wind-jma")
+def wind_jma(data: WindRequest):
+    zoom = 10
 
-        diff = abs((t_dt - now).total_seconds())
+    xtile, ytile = latlon_to_tile(data.lat, data.lon, zoom)
+    px, py = latlon_to_pixel(data.lat, data.lon, zoom)
 
-        if min_diff is None or diff < min_diff:
-            min_diff = diff
-            best_index = i
+    url = f"https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/{zoom}/{xtile}/{ytile}.png"
+
+    resp = requests.get(url, timeout=10)
+    resp.raise_for_status()
+
+    img = Image.open(BytesIO(resp.content))
+    rgb = img.getpixel((px, py))
+
+    wind_speed = rgb_to_wind(rgb)
+    wind_direction = rgb_to_direction(rgb)
 
     return {
-        "time": times[best_index],
-        "wind_speed": speeds[best_index],
-        "wind_direction": dirs[best_index]
+        "wind_speed": wind_speed,
+        "wind_direction": wind_direction,
+        "rgb": rgb,
+        "tile": url
     }
+
 
 # -------------------------
 # ショット方向（1m歩行方式）
@@ -176,54 +195,6 @@ def shot_direction(data: ShotDirectionRequest):
     return {
         "shot_direction": bearing
     }
-
-class WindRequest(BaseModel):
-    lat: float
-    lon: float
-
-@app.post("/wind-jma")
-def wind_jma(data: WindRequest):
-    # 現在の UTC
-    now = datetime.utcnow()
-
-    # LFM は 3 時間ごとのディレクトリ
-    lfm_hour = (now.hour // 3) * 3
-
-    # ディレクトリ名（YYYYMMDDHH）
-    base_time = now.replace(hour=lfm_hour, minute=0, second=0, microsecond=0)
-    base = base_time.strftime("%Y%m%d%H")
-
-    # GRIB2 URL
-    url_u = f"https://www.jma.go.jp/bosai/model/data/lfm/{base}/surf/UGRD_P0_L103_GLL0.grib2"
-    url_v = f"https://www.jma.go.jp/bosai/model/data/lfm/{base}/surf/VGRD_P0_L103_GLL0.grib2"
-
-    # ダウンロード
-    resp_u = requests.get(url_u, timeout=10)
-    resp_v = requests.get(url_v, timeout=10)
-    resp_u.raise_for_status()
-    resp_v.raise_for_status()
-
-    open("u.grib2", "wb").write(resp_u.content)
-    open("v.grib2", "wb").write(resp_v.content)
-
-    # GRIB2 読み込み
-    grbs_u = pygrib.open("u.grib2")
-    grbs_v = pygrib.open("v.grib2")
-
-    # 指定地点の風ベクトル
-    u = grbs_u[1].data(lat1=data.lat, lat2=data.lat, lon1=data.lon, lon2=data.lon)[0][0][0]
-    v = grbs_v[1].data(lat1=data.lat, lat2=data.lat, lon1=data.lon, lon2=data.lon)[0][0][0]
-
-    # 風速・風向
-    speed = math.sqrt(u*u + v*v)
-    direction = (math.degrees(math.atan2(-u, -v)) + 360) % 360
-
-    return {
-        "wind_speed": round(speed, 1),
-        "wind_direction": round(direction, 1),
-        "source": f"JMA LFM {base}"
-    }
-
 
 # -------------------------
 # UI（HTML + JavaScript）
