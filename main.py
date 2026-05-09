@@ -9,6 +9,7 @@ from azure.storage.blob import BlobServiceClient
 from datetime import datetime, timedelta, timezone
 import requests
 import math
+import pygrib
 
 app = FastAPI()
 
@@ -175,6 +176,41 @@ def shot_direction(data: ShotDirectionRequest):
         "shot_direction": bearing
     }
 
+class WindRequest(BaseModel):
+    lat: float
+    lon: float
+
+@app.post("/wind-jma")
+def wind_jma(data: WindRequest):
+    # 最新時刻（LFMは10分遅れで公開）
+    now = datetime.utcnow() - timedelta(minutes=20)
+    base = now.strftime("%Y%m%d%H")
+
+    # GRIB2 URL（U成分・V成分）
+    url_u = f"https://www.jma.go.jp/bosai/model/data/lfm/{base}/surf/UGRD_P0_L103_GLL0.grib2"
+    url_v = f"https://www.jma.go.jp/bosai/model/data/lfm/{base}/surf/VGRD_P0_L103_GLL0.grib2"
+
+    # ダウンロード
+    open("u.grib2", "wb").write(requests.get(url_u).content)
+    open("v.grib2", "wb").write(requests.get(url_v).content)
+
+    # GRIB2 読み込み
+    grbs_u = pygrib.open("u.grib2")
+    grbs_v = pygrib.open("v.grib2")
+
+    # 指定地点の風ベクトルを取得
+    u = grbs_u[1].data(lat1=data.lat, lat2=data.lat, lon1=data.lon, lon2=data.lon)[0][0][0]
+    v = grbs_v[1].data(lat1=data.lat, lat2=data.lat, lon1=data.lon, lon2=data.lon)[0][0][0]
+
+    # 風速・風向き
+    speed = math.sqrt(u*u + v*v)
+    direction = (math.degrees(math.atan2(-u, -v)) + 360) % 360
+
+    return {
+        "wind_speed": round(speed, 1),
+        "wind_direction": round(direction, 1),
+        "source": "JMA LFM（Yahoo天気と同じ）"
+    }
 
 # -------------------------
 # UI（HTML + JavaScript）
@@ -503,7 +539,7 @@ def wind_ai_page():
     <button onclick="startShotDirection()">ショット方向を計測（1m歩行）</button>
     <div id="shotDirectionResult" class="info-box">未計測</div>
 
-    <!-- ★ これを追加する！ -->
+    <!-- 風 × ショット方向 -->
     <div id="windShotResult" class="info-box">風とショット方向の関係：未計算</div>
 
     <script>
@@ -539,13 +575,13 @@ def wind_ai_page():
         });
 
         // -----------------------------
-        // 最新風データ（Open-Meteo）
+        // 最新風データ（JMA LFM）
         // -----------------------------
         navigator.geolocation.getCurrentPosition(async (pos) => {
             const lat = pos.coords.latitude;
             const lon = pos.coords.longitude;
 
-            const res = await fetch("/wind", {
+            const res = await fetch("/wind-jma", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ lat, lon })
@@ -554,8 +590,7 @@ def wind_ai_page():
             const data = await res.json();
 
             document.getElementById("windInfo").innerText =
-                `最新風データ\n` +
-                `時刻：${data.time}\n` +
+                `最新風データ（JMA LFM）\n` +
                 `風速：${data.wind_speed} m/s\n` +
                 `風向：${data.wind_direction}°`;
         });
@@ -609,8 +644,8 @@ def wind_ai_page():
                             document.getElementById("shotDirectionResult").innerText =
                                 `ショット方向：${dir.toFixed(1)}°`;
 
-                            // 風データを取得して角度差を計算
-                            fetch("/wind", {
+                            // 風データ（JMA）を取得して角度差を計算
+                            fetch("/wind-jma", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({ lat: shotA.lat, lon: shotA.lon })
@@ -672,7 +707,7 @@ def wind_ai_page():
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
     </script>
-        
+
     </body>
     </html>
     """

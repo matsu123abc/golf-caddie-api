@@ -4,3 +4,4 @@ pydantic
 python-multipart
 azure-storage-blob
 requests
+pygrib
