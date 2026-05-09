@@ -76,8 +76,13 @@ def home():
     <body>
 
     <div class="home-container">
+
         <button class="home-btn" onclick="location.href='/distance'">
-            飛距離計
+            📏 飛距離計
+        </button>
+
+        <button class="home-btn" onclick="location.href='/wind-ai'">
+            🌬 風向きAI分析
         </button>
 
     </div>
