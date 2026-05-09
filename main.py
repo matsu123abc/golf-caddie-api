@@ -175,6 +175,7 @@ def shot_direction(data: ShotDirectionRequest):
         "shot_direction": bearing
     }
 
+
 # -------------------------
 # UI（HTML + JavaScript）
 # -------------------------
@@ -187,10 +188,6 @@ def distance_page():
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>飛距離計</title>
-
-        <!-- MapLibre 読み込み -->
-        <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
-        <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
 
         <style>
             body {
@@ -262,16 +259,6 @@ def distance_page():
                 font-size: 30px;
                 z-index: 9999;
             }
-
-            /* 風マップ */
-            #windMap {
-                width: 100%;
-                height: 300px;
-                border-radius: 12px;
-                overflow: hidden;
-                margin-top: 30px;
-                border: 2px solid #ccc;
-            }
         </style>
     </head>
 
@@ -294,48 +281,12 @@ def distance_page():
     <button onclick="startVoice()">🎤 音声操作スタート</button>
     <div id="voiceStatus">音声操作は停止中</div>
 
-    <button onclick="startShotDirection()">ショット方向を計測（1m歩行）</button>
-    <div id="shotDirectionResult" class="info-box">未計測</div>
-
-    <!-- 風向きマップ -->
-    <h2>🌬 風向きマップ（気象庁 LFM）</h2>
-    <div id="windMap"></div>
-
     <!-- GPS精度バー -->
     <div id="gpsAccuracyBar">GPS精度：計測中…</div>
 
     <script>
     let pointA = null;
     let pointB = null;
-
-    // MapLibre 風ベクトルタイル表示
-    const map = new maplibregl.Map({
-        container: "windMap",
-        style: {
-            version: 8,
-            sources: {
-                "wind": {
-                    type: "raster",
-                    tiles: [
-                        "https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/{z}/{x}/{y}.png"
-                    ],
-                    tileSize: 256,
-                    attribution: "© JMA"
-                }
-            },
-            layers: [
-                {
-                    id: "wind-layer",
-                    type: "raster",
-                    source: "wind",
-                    minzoom: 3,
-                    maxzoom: 10
-                }
-            ]
-        },
-        center: [140.47, 36.37], // 水戸市
-        zoom: 10
-    });
 
     // 高精度GPS取得（2回測定＋1秒待機＋平均＋精度表示）
     function getGPS(callback) {
@@ -430,18 +381,200 @@ def distance_page():
         });
     }
 
+    // 音声操作
+    function startVoice() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("このブラウザは音声認識に対応していません");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = "ja-JP";
+        recognition.continuous = true;
+
+        recognition.onstart = () => {
+            document.getElementById("voiceStatus").innerText = "🎤 音声認識中…";
+        };
+
+        recognition.onresult = (event) => {
+            const text = event.results[event.results.length - 1][0].transcript;
+            document.getElementById("voiceStatus").innerText = "認識: " + text;
+
+            if (text.includes("A")) recordA();
+            if (text.includes("B")) recordB();
+            if (text.includes("距離")) calcDistance();
+        };
+
+        recognition.onerror = (e) => {
+            document.getElementById("voiceStatus").innerText = "音声認識エラー: " + e.error;
+        };
+
+        recognition.start();
+    }
+    </script>
+
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
+
+
+@app.get("/wind-ai", response_class=HTMLResponse)
+def wind_ai_page():
+    html = """
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>風向きAI分析</title>
+
+        <!-- MapLibre -->
+        <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+        <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
+
+        <style>
+            body {
+                font-family: sans-serif;
+                padding: 20px;
+                background: #f5f5f5;
+                margin: 0;
+            }
+            h2 {
+                text-align: center;
+                font-size: 32px;
+                margin-bottom: 20px;
+            }
+            .top-btn {
+                width: 100%;
+                padding: 20px;
+                font-size: 26px;
+                border-radius: 14px;
+                border: none;
+                background: #444;
+                color: white;
+                margin-bottom: 20px;
+            }
+            #windMap {
+                width: 100%;
+                height: 300px;
+                border-radius: 12px;
+                overflow: hidden;
+                border: 2px solid #ccc;
+            }
+            .info-box {
+                margin-top: 20px;
+                padding: 20px;
+                background: white;
+                border-radius: 12px;
+                font-size: 26px;
+                border: 2px solid #ccc;
+            }
+            button {
+                width: 100%;
+                padding: 26px;
+                margin-top: 16px;
+                font-size: 30px;
+                border-radius: 16px;
+                border: none;
+                background: #0078d4;
+                color: white;
+            }
+            button:active {
+                background: #005a9e;
+            }
+        </style>
+    </head>
+
+    <body>
+
+    <button class="top-btn" onclick="location.href='/'">← ホームに戻る</button>
+
+    <h2>🌬 風向きAI分析</h2>
+
+    <!-- 風向きマップ -->
+    <div id="windMap"></div>
+
+    <!-- 最新風データ -->
+    <div id="windInfo" class="info-box">風データ取得中…</div>
+
+    <!-- ショット方向 -->
+    <button onclick="startShotDirection()">ショット方向を計測（1m歩行）</button>
+    <div id="shotDirectionResult" class="info-box">未計測</div>
+
+    <script>
+    // -----------------------------
+    // 風向きマップ（JMA LFM）
+    // -----------------------------
+    const map = new maplibregl.Map({
+        container: "windMap",
+        style: {
+            version: 8,
+            sources: {
+                "wind": {
+                    type: "raster",
+                    tiles: [
+                        "https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/{z}/{x}/{y}.png"
+                    ],
+                    tileSize: 256,
+                    attribution: "© JMA"
+                }
+            },
+            layers: [
+                {
+                    id: "wind-layer",
+                    type: "raster",
+                    source: "wind",
+                    minzoom: 3,
+                    maxzoom: 10
+                }
+            ]
+        },
+        center: [140.47, 36.37], // 水戸市
+        zoom: 10
+    });
+
+    // -----------------------------
+    // 最新風データ（Open-Meteo）
+    // -----------------------------
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
+        const res = await fetch("/wind", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ lat, lon })
+        });
+
+        const data = await res.json();
+
+        document.getElementById("windInfo").innerText =
+            `最新風データ\n` +
+            `時刻：${data.time}\n` +
+            `風速：${data.wind_speed} m/s\n` +
+            `風向：${data.wind_direction}°`;
+    });
+
+    // -----------------------------
+    // ショット方向（1m歩行方式）
+    // -----------------------------
     let shotA = null;
 
     function startShotDirection() {
         document.getElementById("shotDirectionResult").innerText = "A地点取得中…";
 
-        // ① A地点を取得
-        getGPS((pA) => {
-            shotA = pA;
+        // A地点取得
+        navigator.geolocation.getCurrentPosition((pos) => {
+            shotA = {
+                lat: pos.coords.latitude,
+                lon: pos.coords.longitude
+            };
+
             document.getElementById("shotDirectionResult").innerText =
                 "A地点取得 → グリーン方向に1m歩いてください…";
 
-            // ② 1m以上動いたら B地点を自動取得
             watchPositionForShot();
         });
     }
@@ -457,7 +590,6 @@ def distance_page():
                 if (dist >= 1.0) {
                     navigator.geolocation.clearWatch(watchId);
 
-                    // B地点取得
                     fetch("/shot-direction", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -490,7 +622,7 @@ def distance_page():
         );
     }
 
-    // JS版ハバーサイン（距離計算）
+    // 距離計算（ハバーサイン）
     function calcHaversine(lat1, lon1, lat2, lon2) {
         const R = 6371000;
         const toRad = (x) => x * Math.PI / 180;
@@ -505,7 +637,6 @@ def distance_page():
 
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
-        
     </script>
 
     </body>
