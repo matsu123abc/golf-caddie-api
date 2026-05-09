@@ -121,15 +121,16 @@ def get_wind(data: WindRequest):
     dirs = weather["hourly"]["winddirection_10m"]
     times = weather["hourly"]["time"]
 
-    # 現在時刻（日本時間）
-    now = datetime.now(timezone(timedelta(hours=9)))
+    # 現在時刻（日本時間）→ naive に変換
+    now = datetime.now(timezone(timedelta(hours=9))).replace(tzinfo=None)
 
-    # 現在時刻に最も近いデータを探す
     best_index = 0
     min_diff = None
 
     for i, t in enumerate(times):
+        # Open-Meteo の時刻は naive（タイムゾーンなし）
         t_dt = datetime.fromisoformat(t)
+
         diff = abs((t_dt - now).total_seconds())
 
         if min_diff is None or diff < min_diff:
@@ -138,8 +139,8 @@ def get_wind(data: WindRequest):
 
     return {
         "time": times[best_index],
-        "wind_speed": speeds[best_index],       # m/s
-        "wind_direction": dirs[best_index]      # 0〜360°
+        "wind_speed": speeds[best_index],
+        "wind_direction": dirs[best_index]
     }
 
 # -------------------------
