@@ -4,4 +4,3 @@ pydantic
 python-multipart
 azure-storage-blob
 requests
-Pillow
