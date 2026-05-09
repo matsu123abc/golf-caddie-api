@@ -1,6 +1,4 @@
 fastapi
 uvicorn
-pydantic
-python-multipart
-azure-storage-blob
 requests
+python-multipart
