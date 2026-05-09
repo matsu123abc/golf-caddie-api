@@ -6,6 +6,8 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from fastapi import File, UploadFile, Form
 from azure.storage.blob import BlobServiceClient
+from datetime import datetime, timedelta, timezone
+import requests
 
 app = FastAPI()
 
@@ -97,7 +99,7 @@ def calc_distance(data: GPSData):
     }
 
 # -------------------------
-# 風向き・風速 API（Open-Meteo）
+# 風向き・風速 API（Open-Meteo 最新時刻）
 # -------------------------
 class WindRequest(BaseModel):
     lat: float
@@ -105,8 +107,6 @@ class WindRequest(BaseModel):
 
 @app.post("/wind")
 def get_wind(data: WindRequest):
-    import requests
-
     url = (
         "https://api.open-meteo.com/v1/forecast"
         f"?latitude={data.lat}&longitude={data.lon}"
@@ -121,12 +121,25 @@ def get_wind(data: WindRequest):
     dirs = weather["hourly"]["winddirection_10m"]
     times = weather["hourly"]["time"]
 
-    latest = len(speeds) - 1
+    # 現在時刻（日本時間）
+    now = datetime.now(timezone(timedelta(hours=9)))
+
+    # 現在時刻に最も近いデータを探す
+    best_index = 0
+    min_diff = None
+
+    for i, t in enumerate(times):
+        t_dt = datetime.fromisoformat(t)
+        diff = abs((t_dt - now).total_seconds())
+
+        if min_diff is None or diff < min_diff:
+            min_diff = diff
+            best_index = i
 
     return {
-        "time": times[latest],
-        "wind_speed": speeds[latest],       # m/s
-        "wind_direction": dirs[latest]      # 0〜360°
+        "time": times[best_index],
+        "wind_speed": speeds[best_index],       # m/s
+        "wind_direction": dirs[best_index]      # 0〜360°
     }
 
 # -------------------------
@@ -141,6 +154,10 @@ def distance_page():
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>飛距離計</title>
+
+        <!-- MapLibre 読み込み -->
+        <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+        <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
 
         <style>
             body {
@@ -212,6 +229,16 @@ def distance_page():
                 font-size: 30px;
                 z-index: 9999;
             }
+
+            /* 風マップ */
+            #windMap {
+                width: 100%;
+                height: 300px;
+                border-radius: 12px;
+                overflow: hidden;
+                margin-top: 30px;
+                border: 2px solid #ccc;
+            }
         </style>
     </head>
 
@@ -234,12 +261,45 @@ def distance_page():
     <button onclick="startVoice()">🎤 音声操作スタート</button>
     <div id="voiceStatus">音声操作は停止中</div>
 
+    <!-- 風向きマップ -->
+    <h2>🌬 風向きマップ（気象庁 LFM）</h2>
+    <div id="windMap"></div>
+
     <!-- GPS精度バー -->
     <div id="gpsAccuracyBar">GPS精度：計測中…</div>
 
     <script>
     let pointA = null;
     let pointB = null;
+
+    // MapLibre 風ベクトルタイル表示
+    const map = new maplibregl.Map({
+        container: "windMap",
+        style: {
+            version: 8,
+            sources: {
+                "wind": {
+                    type: "raster",
+                    tiles: [
+                        "https://www.jma.go.jp/bosai/jmatile/data/wind/rasrf/{z}/{x}/{y}.png"
+                    ],
+                    tileSize: 256,
+                    attribution: "© JMA"
+                }
+            },
+            layers: [
+                {
+                    id: "wind-layer",
+                    type: "raster",
+                    source: "wind",
+                    minzoom: 3,
+                    maxzoom: 10
+                }
+            ]
+        },
+        center: [140.47, 36.37], // 水戸市
+        zoom: 10
+    });
 
     // 高精度GPS取得（2回測定＋1秒待機＋平均＋精度表示）
     function getGPS(callback) {
@@ -334,58 +394,9 @@ def distance_page():
         });
     }
 
-    async function fetchWind(lat, lon) {
-        const res = await fetch("/wind", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ lat, lon })
-        });
-
-        const data = await res.json();
-        console.log("風速:", data.wind_speed, "m/s");
-        console.log("風向き:", data.wind_direction, "°");
-
-        return data;
-    }
-        
-    // 音声操作
-    function startVoice() {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            alert("このブラウザは音声認識に対応していません");
-            return;
-        }
-
-        const recognition = new SpeechRecognition();
-        recognition.lang = "ja-JP";
-        recognition.continuous = true;
-
-        recognition.onstart = () => {
-            document.getElementById("voiceStatus").innerText = "🎤 音声認識中…";
-        };
-
-        recognition.onresult = (event) => {
-            const text = event.results[event.results.length - 1][0].transcript;
-            document.getElementById("voiceStatus").innerText = "認識: " + text;
-
-            if (text.includes("A")) recordA();
-            if (text.includes("B")) recordB();
-            if (text.includes("距離")) calcDistance();
-        };
-
-        recognition.onerror = (e) => {
-            document.getElementById("voiceStatus").innerText = "音声認識エラー: " + e.error;
-        };
-
-        recognition.start();
-    }
     </script>
 
     </body>
     </html>
     """
     return HTMLResponse(content=html)
-
-
-
-
